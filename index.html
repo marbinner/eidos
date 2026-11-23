@@ -6,6 +6,14 @@
   <title>eidos: mathematics you can touch</title>
   <meta name="description" content="Interactive pictures of linear algebra, calculus, dynamics, statistics, Hermite polynomials, neural networks and interpretability. Everything is computed and drawn live in your browser.">
   <meta name="theme-color" content="#07090f">
+  <!-- added to a phone's home screen, the page opens full screen, without the browser around it
+       (on an iPhone that is the only way: its browser has no full-screen mode for pages) -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="eidos">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <link rel="apple-touch-icon" href="icon-180.png">
   <!-- how a link to this page looks when it is shared -->
   <meta property="og:type" content="website">
   <meta property="og:title" content="eidos: mathematics you can touch">
@@ -23,6 +31,10 @@
     #loading { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; }
     #loading b { font-size: 28px; font-weight: 600; letter-spacing: 0.02em; }
     #loading span { color: #8792a8; }
+    #stopped { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; background: rgba(8, 10, 16, 0.82); line-height: 1.9; }
+    #stopped b { font-size: 22px; font-weight: 600; }
+    #stopped span { color: #b8c0d0; }
+    #stopped button { margin-top: 10px; padding: 6px 18px; font: inherit; color: #e6eaf2; background: #264e96; border: 0; border-radius: 6px; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -30,6 +42,22 @@
   <div id="loading"><div><b>eidos</b><br><span>loading… (about 3 MB, once)</span></div></div>
   <noscript><div style="position:fixed;inset:0;display:grid;place-items:center">eidos needs JavaScript and WebGPU or WebGL2.</div></noscript>
   <script type="module">
+    // F1 shows our frame timings; without this the browser also opens its help
+    window.addEventListener("keydown", (e) => { if (e.key === "F1") e.preventDefault(); });
+    // If the program stops (a bug), the picture would simply freeze: say so instead.
+    const stopped = (what) => {
+      const text = String((what && (what.message || what.reason)) || what || "");
+      if (!/unreachable|RuntimeError|panicked|memory access|recursion/i.test(text)) return;
+      if (document.getElementById("stopped")) return;
+      const box = document.createElement("div");
+      box.id = "stopped";
+      box.innerHTML = "<div><b>eidos has stopped</b><br><span>Something went wrong inside it. " +
+        "Reloading the page starts it again.</span><br><button>reload</button></div>";
+      box.querySelector("button").onclick = () => location.reload();
+      document.body.appendChild(box);
+    };
+    window.addEventListener("error", (e) => stopped(e.error || e.message));
+    window.addEventListener("unhandledrejection", (e) => stopped(e.reason));
     import init from "./pkg/eidos.js";
     init().catch((e) => {
       document.getElementById("loading").innerHTML =
