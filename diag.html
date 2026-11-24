@@ -46,7 +46,17 @@
       }
     } catch (e) { say("info", ["WebGPU adapter: unknown (" + e + ")"]); }
     const { default: init } = await import("./pkg/eidos.js");
-    try { await init(); say("info", ["started"]); } catch (e) { say("init failed", [e]); }
+    // (the program removes #loading when its first frame is up, and writes the reason
+    // into it if it cannot draw)
+    try {
+      await init();
+      say("info", ["program loaded"]);
+      const box = document.getElementById("loading");
+      for (let i = 0; i < 100 && box && box.isConnected && !box.textContent.includes("could not start"); i++) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      say("info", [!box || !box.isConnected ? "started" : "not started: " + box.textContent.trim()]);
+    } catch (e) { say("init failed", [e]); }
     // hold the page's load event until a few seconds of frames have been drawn
     const wait = Number(new URLSearchParams(location.search).get("wait") || 0);
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));

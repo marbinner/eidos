@@ -58,10 +58,13 @@
     };
     window.addEventListener("error", (e) => stopped(e.error || e.message));
     window.addEventListener("unhandledrejection", (e) => stopped(e.reason));
-    import init from "./pkg/eidos.js";
-    init().catch((e) => {
-      document.getElementById("loading").innerHTML =
-        "<div><b>eidos could not start</b><br><span>" + e + "</span></div>";
+    // (imported this way so that a failed download ends in a message, not in
+    // "loading" for ever)
+    import("./pkg/eidos.js").then((m) => m.default()).catch((e) => {
+      const box = document.getElementById("loading");
+      if (!box) return;
+      box.innerHTML = "<div><b>eidos could not start</b><br><span></span><br><span>Reloading the page may help.</span></div>";
+      box.querySelector("span").textContent = String(e);
     });
   </script>
 </body>
