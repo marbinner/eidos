@@ -6,7 +6,7 @@ A network learns only if the gradient of its loss reaches every layer at a size 
 
 ## Forward, then back
 
-Write $x_0$ for the data and $x_l$ for what layer $l$ hands on, $x_l = f_l(x_{l-1})$, and $L$ for the loss. Backpropagation starts from $g = \partial L / \partial x$ at the top and hands it down one layer at a time by the chain rule:
+Write $x_0$ for the data and $x_l$ for what layer $l$ hands on, $x_l = f_l(x_{l-1})$, and $L$ for the loss. Backpropagation starts from $g = \partial L / \partial x$ at the top and hands it down, layer by layer, by the chain rule:
 
 $$ g_{l-1} = J_l^\top g_l $$
 
@@ -16,7 +16,7 @@ If the weights are drawn with variance $\text{gain}^2 / n$ ($n$ inputs per unit)
 
 ## Normalisation and skips
 
-A normalisation rescales what passes through: layer normalisation turns each example into $(x - \bar x)/s$, with $s$ the standard deviation of its entries. So the signal leaves every layer at the same size. Nothing in that keeps the gradient level: in the scene, thirty ReLU layers with batch normalisation (each unit standardised over the batch) hand back a gradient that grows more than 700 times.
+A normalisation rescales what passes through: layer normalisation turns each example into $(x - \bar x)/s$, with $s$ the standard deviation of its entries. So the signal leaves every layer at about the same size. Nothing in that keeps the gradient level: in the scene, thirty ReLU layers with batch normalisation (each unit standardised over the batch) hand back a gradient that grows more than 700 times.
 
 A skip connection adds the layer to its input, $x_l = x_{l-1} + s\, f(x_{l-1})$, so
 
@@ -26,7 +26,7 @@ The identity hands the gradient down unchanged; the branch adds to it. "Pre" put
 
 ## Stretching
 
-The Jacobian of layers 2 to $L$ is the product $J = J_L \cdots J_2$. Its singular values $\sigma_1 \ge \sigma_2 \ge \dots$ say how much it stretches each direction: a gradient along one of its directions comes back $\sigma_k$ times as large. Spread over many powers of ten, they mean a few directions carry most of it.
+The Jacobian of layers 2 to $L$, the last, is $J = J_L \cdots J_2$. Its singular values $\sigma_1 \ge \sigma_2 \ge \dots$ say how much it stretches each direction: a gradient along one of its directions comes back $\sigma_k$ times as large. Spread over many powers of ten, they usually mean a few directions carry most of it.
 
 ## The size of a step
 

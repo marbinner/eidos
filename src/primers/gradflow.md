@@ -32,7 +32,7 @@ The prediction is what every draw of the weights does when the layers are very w
 
 ## The whole stack
 
-The Jacobian of layers 2 to $L$, $J = \partial h_L/\partial h_1$, is a product of one matrix per layer, and $g_1 = J^\top g_L$. Its singular values $s_1 \ge s_2 \ge \dots$ are how much it stretches its directions. Their mean square is the squared stretch of a random direction, on average, and $\chi$ controls only that average. Products of many random Gaussian matrices spread their singular values further apart with every factor, so a few directions take nearly all of the gradient. With orthogonal weights at gain 1 and the identity as activation, $J$ is itself orthogonal: every $s_i$ is exactly 1. With ReLU a shut unit passes nothing back, so no more of the $s_i$ can differ from 0 than the fewest units open in any layer.
+The Jacobian of layers 2 to 50, $J = \partial h_{50}/\partial h_1$, is a product of one matrix per layer, and $g_1 = J^\top g_{50}$. Its singular values $s_1 \ge s_2 \ge \dots$ are how much it stretches its directions. Their mean square is the squared stretch of a random direction, on average, and $\chi$ controls only that average. Products of many random Gaussian matrices spread their singular values further apart with more factors, so a few directions take nearly all the gradient. With orthogonal weights at gain 1 and the identity as activation, $J$ is itself orthogonal: every $s_i$ is exactly 1. With ReLU a shut unit passes nothing back, so no more of the $s_i$ can differ from 0 than the fewest units open in any of these layers.
 
 # In the picture
 

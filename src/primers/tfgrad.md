@@ -1,6 +1,6 @@
 # The idea
 
-A transformer's loss at one position depends on every weight, and on the residual stream at every layer, at that position and earlier ones. This scene follows the gradient of that loss back through the network: down the stream, and across the positions. Does it reach the bottom, which positions does it reach, and how much reaches each part's weights? It helps to know the chain rule and what a transformer block does: attention, then an MLP.
+A transformer's loss at one position depends on the weights, and on the residual stream at every layer, at that position and earlier ones. This scene follows the gradient of that loss back through the network: down the stream, and across the positions. Does it reach the bottom, which positions does it reach, and how much reaches each part's weights? It helps to know the chain rule and what a transformer block does: attention, then an MLP.
 
 # The mathematics
 
@@ -28,7 +28,7 @@ and more reaches position $j$ through the weights $a_{ij}$ themselves. Only $j \
 
 ## Small where it has learnt
 
-The loss at a position is $L = -\ln p_y$, with $p$ the network's chances for the next token and $y$ the right one. Its gradient with respect to the scores the chances come from is $p - e_y$, where $e_y$ has 1 at $y$ and 0 elsewhere. With three tokens and even chances, $p - e_y = (-2/3, 1/3, 1/3)$, of length 0.82; with chances $(0.98, 0.01, 0.01)$ it is $(-0.02, 0.01, 0.01)$, of length 0.024. Every other gradient is this vector carried back by the chain rule, a linear map for a given network, so they all shrink with it.
+The loss at a position is $L = -\ln p_y$, with $p$ the network's chances for the next token and $y$ the right one. Its gradient with respect to the scores the chances come from is $p - e_y$, where $e_y$ has 1 at $y$ and 0 elsewhere. With three tokens and even chances, $p - e_y = (-2/3, 1/3, 1/3)$, of length 0.82; with chances $(0.98, 0.01, 0.01)$ it is $(-0.02, 0.01, 0.01)$, of length 0.024. Every other gradient is this vector carried back by the chain rule, a linear map for a given network, so they shrink with it unless that map grows.
 
 # In the picture
 
@@ -36,7 +36,7 @@ The loss at a position is $L = -\ln p_y$, with $p$ the network's chances for the
 - Orange: the position whose loss is $L$; the thin bar under a next token is its chance $p_y$.
 - The yellow bars: the length of the gradient reaching each head's and each MLP's weights $W$; beside each, its relative step $\eta \, |\partial L / \partial W| / |W|$ at the training rate $\eta = 0.004$.
 - The chart: the length of $g$ at the loss's position, from the embeddings (block 0) up; dashed, a design kept for comparison.
-- One cell taken apart: green, the skip road; blue, what came through the part above. The top strip is their sum, number by number.
+- One cell taken apart: green, the skip road; blue, what came through the part above. The top strip is their sum.
 
 > Try first "where one loss's gradient goes", then "take the skips away".
 

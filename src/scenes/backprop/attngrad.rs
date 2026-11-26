@@ -373,7 +373,7 @@ const TRIALS: [Trial; 5] = [
     },
     Trial {
         label: "the pattern road: look more at what would help",
-        look_for: r#"Would more of $x_j$ help? The slope of the loss for its attention is $\partial L/\partial a_{6j} = g \cdot v_j$: $-0.88$ for $x_1$, whose value lies furthest against $g$, and $+0.71$ for $x_2$. The softmax turns these into slopes for the scores, $a_{6j}(g \cdot v_j - g \cdot o_6)$, measured from the mix's own $g \cdot o_6 = 0.23$: a step of descent raises the scores of the values beyond the dashed line, better than the mix (bars up), and lowers the rest. $x_2$, the head's favourite, lies on the wrong side: its bar goes furthest down, to $-0.201$. $x_1$ is the best, yet $x_6$'s bar is the taller (0.126 against 0.078): each slope is multiplied by the attention already paid, 0.20 against 0.07. The bars add up to 0: raising every score alike would change nothing."#,
+        look_for: r#"Would more of $x_j$ help? The slope of the loss for its attention is $\partial L/\partial a_{6j} = g \cdot v_j$: $-0.88$ for $x_1$, whose value lies furthest against $g$, and $+0.71$ for $x_2$. The softmax turns these into slopes for the scores, $a_{6j}(g \cdot v_j - g \cdot o_6)$, measured from the mix's own $g \cdot o_6 = 0.23$: a step of descent on the scores raises those of the values beyond the dashed line, better than the mix (bars up), and lowers the rest. $x_2$, the head's favourite, lies on the wrong side: its bar goes furthest down, to $-0.201$. $x_1$ is the best, yet $x_6$'s bar is the taller (0.126 against 0.078): each slope is multiplied by the attention already paid, 0.20 against 0.07. The bars add up to 0: raising every score alike would change nothing."#,
         dest: 5,
         beta: 1.0,
         g: G1,
@@ -383,7 +383,7 @@ const TRIALS: [Trial; 5] = [
     },
     Trial {
         label: "a head that is sure stops learning where to look",
-        look_for: r#"$\beta$ plays from 0 to 10, and the attention goes from even ($1/6$ each) to 0.9993 on $x_2$. The softmax's Jacobian, $\operatorname{diag}(a) - a a^\top$, shrinks to nothing (its largest entry from 0.14 to 0.0006), and the pattern road closes with it: the scores' gradient falls from 0.230 to 0.0004, all the way down the chart. The value road widens instead, from 0.327 to 0.799, nearly $|g| = 0.8$: $v_2$ now gets almost all of $g$. The head goes on changing what it moves, but has stopped learning where to look, though $x_5$ would be better: moving attention from $x_2$ to $x_5$ would lower the loss at a rate of 1.40 per unit."#,
+        look_for: r#"$\beta$ plays from 0 to 10, and the attention goes from even ($1/6$ each) to 0.9993 on $x_2$. The softmax's Jacobian, $\operatorname{diag}(a) - a a^\top$, shrinks to nothing (its largest entry from 0.14 to 0.0006), and the pattern road closes with it: the scores' gradient falls from 0.230 to 0.0004, all the way down the chart. The value road widens instead, from 0.327 to 0.799, nearly $|g| = 0.8$: $v_2$ now gets almost all of $g$. The head goes on changing what it moves, but has all but stopped learning where to look, though $x_5$ would be better: moving attention from $x_2$ to $x_5$ would lower the loss at a rate of 1.40 per unit."#,
         dest: 5,
         beta: 0.0,
         g: G0,
@@ -1206,7 +1206,7 @@ impl AttnGrad {
         let side = Vec2::new(-screen_unit.y, screen_unit.x);
         f.text_px(tip + side * 14.0 + screen_unit * 4.0, "$g$", small + 1.5, BACKWARD, Align2::CENTER_CENTER);
         // what the marks mean, under the plane
-        let note = format!(r"Pink on each value: its gradient, $a_{{{d}j}}\,g$. Dashed: as good as the mix. Values beyond it, on the side away from $g$, are better than the mix: a step of descent raises their scores.");
+        let note = format!(r"Pink on each value: its gradient, $a_{{{d}j}}\,g$. Dashed: as good as the mix. Values beyond it, on the side away from $g$, are better than the mix: a step of descent on the scores raises theirs.");
         wrapped_px(f, Vec2::new(min.x, max.y + 8.0), max.x - min.x, &note, small - 0.5, pal::DIM);
     }
 
@@ -1444,7 +1444,7 @@ impl Scene for AttnGrad {
             &[
                 (FORWARD, r"cyan, what goes forward: the attention from the destination (arcs over the tokens, as wide as $a_{ij}$; and the grid), the values $v_j$ and their mix $o_i$"),
                 (VALUE_ROAD, "pink, gradients: $g$, and the value road (arcs under the tokens, as wide as each value's share; the arrows on the values; what reaches a token as a value)"),
-                (PATTERN_ROAD, "light pink, the pattern road: the bars (up where a step of descent raises the score), and what reaches a token as a key or as the query"),
+                (PATTERN_ROAD, "light pink, the pattern road: the bars (up where a step of descent on the scores raises the score), and what reaches a token as a key or as the query"),
                 (pal::WHITE, "white: the ring round the destination; in the plane, dashed, the values exactly as good as the mix"),
                 (Cmap::IceFire.color(0.9), "the Jacobian's cells: orange positive (its diagonal), blue negative"),
             ],
@@ -1458,7 +1458,7 @@ impl Scene for AttnGrad {
         ui::term(ui, r"$g$:", r"the gradient of the loss with respect to $o_i$, as it comes back from the layers above. Here it is set by hand: the loss is then $L = g \cdot o_i$, plus whatever does not depend on this head.");
         ui::term(ui, "Value road:", r"the gradient through the values, $\partial L/\partial v_j = a_{ij}\,g$, and on through $W_V$. It changes what the head moves.");
         ui::term(ui, "Pattern road:", r"the gradient through the attention and the softmax to the scores, $\partial L/\partial s_{ij}$, and from them to the query of $i$ and the keys of the sources. It changes where the head looks.");
-        ui::term(ui, "A step of descent:", r"a small move of every number against its gradient, which, if small enough, lowers the loss. The bars show $-\partial L/\partial s_{ij}$, the way such a step moves each score.");
+        ui::term(ui, "A step of descent:", r"a small move of every number against its gradient, which, if small enough, lowers the loss. The bars show $-\partial L/\partial s_{ij}$, the way such a step, taken on the scores themselves, moves each score.");
         ui::term(ui, "The softmax's Jacobian:", r"how each attention weight answers a nudge of each score, $\partial a_{ij}/\partial s_{il} = a_{ij}(\delta_{jl} - a_{il})$, with $\delta_{jl}$ 1 if $j = l$ and 0 if not: the matrix $\operatorname{diag}(a) - a a^\top$. It is near 0 when one weight is near 1.");
 
         ui::section(ui, "Numbers");

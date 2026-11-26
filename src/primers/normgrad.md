@@ -14,7 +14,7 @@ $$ \operatorname{rms}(x) = \sqrt{(x_1^2 + \dots + x_n^2)/n} = |x| / \sqrt{n} $$
 - Layer normalisation: the mean of the units is taken off, the rest divided by their standard deviation.
 - Batch normalisation: the same for each unit, over the examples of the batch.
 
-Scale $x$ by any $c > 0$ and $y$ does not change.
+Scale $x$ by any $c > 0$ (for batch normalisation, every example's) and $y$ does not change.
 
 ## The gradient on the way back
 
@@ -22,7 +22,7 @@ Let $g = \partial L / \partial y$ be the gradient of the loss $L$ arriving at $y
 
 $$ \frac{\partial L}{\partial x} = \frac{g - (g \cdot u)\,u}{\operatorname{rms}(x)} $$
 
-Two facts give it. A step along $x$ does not move $y$, so the loss has no slope that way: $g$'s part along $x$ is dropped. A small step $h$ at right angles to $x$ turns its direction by $h / |x|$, and so moves $y = \sqrt{n}\,u$ by $h / \operatorname{rms}(x)$: the rest is divided by $\operatorname{rms}(x)$. So what comes back is at right angles to $x$, and halves when $x$ doubles. Layer normalisation does the same after taking the mean off, so its gradient loses its mean too.
+Two facts give it. A step along $x$ does not move $y$, so the loss has no slope that way: $g$'s part along $x$ is dropped. A small step $h$ at right angles to $x$ turns its direction by $h / |x|$, and so moves $y = \sqrt{n}\,u$ by $h / \operatorname{rms}(x)$: the rest is divided by $\operatorname{rms}(x)$. So what comes back is at right angles to $x$, and halves when $x$ doubles. Layer normalisation does the same after taking the mean off, so its gradient loses its mean.
 
 Example, the scene's first picture: $x = (0.76, 0.38)$, so $|x| = 0.850$, $\operatorname{rms}(x) = 0.601$ and $u = (0.894, 0.447)$. With $g = (0.25, 0.95)$, $g \cdot u = 0.648$, and the rest is $g - 0.648\,u = (-0.330, 0.660)$, of length $0.738$. Divided by $0.601$ it is $(-0.549, 1.098)$, of length $1.23$.
 
