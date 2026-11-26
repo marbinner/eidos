@@ -108,6 +108,7 @@ const TOPICS: &[fn() -> Vec<SceneDef>] = &[
     hermite::scenes,
     neural::scenes,
     backprop::scenes,
+    neural::opening_interpretability,
     interp::scenes,
     lens::scenes,
     plots::scenes,

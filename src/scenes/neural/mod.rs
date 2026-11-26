@@ -4,9 +4,17 @@ use crate::math::nn::{Act, Loss, Mlp, Optim};
 use crate::scenes::prelude::*;
 
 // The scenes of this topic, in the order they appear in the catalogue.
-// (Superposition comes last because it is listed under the next heading,
-// interpretability, which it opens.)
-crate::scenes::topic!(mlp, race, particles, signal, fold, fit1d, landscape, superposition);
+crate::scenes::topic!(mlp, race, particles, signal, fold, fit1d, landscape);
+
+// (Superposition is written here, among the networks it trains, and listed under a
+// later heading, interpretability, which it opens: the catalogue puts the
+// backpropagation course between the two.)
+mod superposition;
+
+/// The scene of this topic that opens the interpretability section.
+pub fn opening_interpretability() -> Vec<SceneDef> {
+    vec![superposition::DEF]
+}
 
 // Not scenes: the parts the playground is made of, and the models two of the
 // scenes draw.

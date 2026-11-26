@@ -82,7 +82,8 @@ impl Panels {
             let x = view.x - side - 44.0;
             let share_y = top + side + 62.0;
             // (the chart of the loss keeps clear of the column and of the canvas's top)
-            let loss = Vec2::new((view.x * 0.26).clamp(190.0, 320.0).min((x - 60.0).max(40.0)), (view.y * 0.16).clamp(70.0, 120.0).min((view.y - 60.0).max(20.0)));
+            let loss =
+                Vec2::new((view.x * 0.26).clamp(190.0, 320.0).min((x - 60.0).max(40.0)), (view.y * 0.16).clamp(70.0, 120.0).min((view.y - 60.0).max(20.0)));
             Panels {
                 narrow: false,
                 below: view.y,
@@ -280,7 +281,10 @@ impl Superposition {
         }
         // the column of the feature shown alone is marked
         let x = o.x + self.alone as f32 * cell;
-        for (a, b) in [(Vec2::new(x - 1.0, o.y - 1.0), Vec2::new(x - 1.0, o.y + side)), (Vec2::new(x + cell * 0.94 + 1.0, o.y - 1.0), Vec2::new(x + cell * 0.94 + 1.0, o.y + side))] {
+        for (a, b) in [
+            (Vec2::new(x - 1.0, o.y - 1.0), Vec2::new(x - 1.0, o.y + side)),
+            (Vec2::new(x + cell * 0.94 + 1.0, o.y - 1.0), Vec2::new(x + cell * 0.94 + 1.0, o.y + side)),
+        ] {
             hud_line(f, a, b, 1.4, pal::WHITE);
         }
         let title = if side > 165.0 {
@@ -296,7 +300,12 @@ impl Superposition {
         let scale_y = o.y + side + 8.0;
         for k in 0..24 {
             let x = |t: f32| o.x + side * 0.62 * t;
-            hud_rect(f, Vec2::new(x(k as f32 / 24.0), scale_y), Vec2::new(x((k + 1) as f32 / 24.0) + 0.5, scale_y + 6.0), heat[table_index((k as f32 + 0.5) / 24.0)]);
+            hud_rect(
+                f,
+                Vec2::new(x(k as f32 / 24.0), scale_y),
+                Vec2::new(x((k + 1) as f32 / 24.0) + 0.5, scale_y + 6.0),
+                heat[table_index((k as f32 + 0.5) / 24.0)],
+            );
         }
         f.text_px(Vec2::new(o.x, scale_y + 9.0), "−1", 10.0, pal::DIM, Align2::LEFT_TOP);
         f.text_px(Vec2::new(o.x + side * 0.31, scale_y + 9.0), "0", 10.0, pal::DIM, Align2::CENTER_TOP);
@@ -332,7 +341,13 @@ impl Superposition {
         let (low, high) = (-0.9, 1.3);
         let y_of = |v: f32| ao.y + size.y * (high - v.clamp(low, high)) / (high - low);
         for (value, label) in [(1.0, "1"), (0.0, "0")] {
-            hud_line(f, Vec2::new(ao.x, y_of(value)), Vec2::new(ao.x + size.x, y_of(value)), 1.0, if value == 0.0 { pal::DIM.a(0.8) } else { pal::FAINT.a(0.6) });
+            hud_line(
+                f,
+                Vec2::new(ao.x, y_of(value)),
+                Vec2::new(ao.x + size.x, y_of(value)),
+                1.0,
+                if value == 0.0 { pal::DIM.a(0.8) } else { pal::FAINT.a(0.6) },
+            );
             f.text_px(Vec2::new(ao.x + size.x + 5.0, y_of(value)), label, 10.5, pal::DIM, Align2::LEFT_CENTER);
         }
         for i in 0..n {
@@ -353,7 +368,13 @@ impl Superposition {
 
         let (lo, size) = at.loss;
         hud_chart(f, lo, size, &[(self.history.points(), pal::CYAN)], true, None);
-        f.text_px(lo + Vec2::new(0.0, -12.0), format!("loss  {}    (log scale, against training steps)", loss_number(self.loss)), 11.5, pal::TEXT, Align2::LEFT_BOTTOM);
+        f.text_px(
+            lo + Vec2::new(0.0, -12.0),
+            format!("loss  {}    (log scale, against training steps)", loss_number(self.loss)),
+            11.5,
+            pal::TEXT,
+            Align2::LEFT_BOTTOM,
+        );
     }
 }
 
@@ -385,7 +406,11 @@ impl Scene for Superposition {
 
     fn ui(&mut self, ui: &mut egui::Ui, _: &Gfx) {
         ui::note(ui, "A network often has more things to keep track of than it has neurons. This small one must pass several features through fewer dimensions and rebuild them on the other side. Each arrow is the direction it has given one feature. Watch how it packs them in, and what that costs.");
-        ui::term(ui, "Feature:", "one thing the input can contain, here a number that is zero in a share of the inputs (the sparsity) and otherwise random between 0 and 1.");
+        ui::term(
+            ui,
+            "Feature:",
+            "one thing the input can contain, here a number that is zero in a share of the inputs (the sparsity) and otherwise random between 0 and 1.",
+        );
         ui::term(ui, "Superposition:", "storing more features than there are dimensions, by letting their directions overlap.");
         ui::term(ui, "Polysemantic neuron:", "a neuron that answers to more than one feature. The neurons here are the axes of the picture: once more arrows are packed in than there are axes, each axis has more than one arrow leaning along it.");
         ui.horizontal(|ui| {
@@ -452,7 +477,15 @@ impl Scene for Superposition {
         ui::readout(ui, "features represented", format!("{kept} of {}", self.n));
         ui::readout(ui, "dimensions", self.m.to_string());
         ui::note(ui, "A share of 1 means a feature has a dimension to itself; $1/2$, that it shares one with its opposite; $2/5$ is a pentagon in the plane (five features on two dimensions). The loss is the squared error of the rebuilt features, weighted by importance.");
-        ui::see_also(ui, &[("sae", "Sparse autoencoders: getting the features back out"), ("packing", "how far apart $n$ directions can be kept at all"), ("transformer", "a transformer, opened up"), ("highdim", "why many dimensions have room for so many directions")]);
+        ui::see_also(
+            ui,
+            &[
+                ("sae", "Sparse autoencoders: getting the features back out"),
+                ("packing", "how far apart $n$ directions can be kept at all"),
+                ("transformer", "a transformer, opened up"),
+                ("highdim", "why many dimensions have room for so many directions"),
+            ],
+        );
     }
 
     fn frame(&mut self, f: &mut Frame) {
@@ -678,7 +711,18 @@ mod tests {
     fn the_panels_fit_every_canvas() {
         // (among them a phone held sideways and a small window, where the panels
         // used to run off the bottom)
-        for (x, y) in [(390.0f32, 800.0f32), (360.0, 640.0), (600.0, 900.0), (590.0, 700.0), (640.0, 480.0), (980.0, 940.0), (1700.0, 800.0), (844.0, 390.0), (600.0, 400.0), (700.0, 330.0)] {
+        for (x, y) in [
+            (390.0f32, 800.0f32),
+            (360.0, 640.0),
+            (600.0, 900.0),
+            (590.0, 700.0),
+            (640.0, 480.0),
+            (980.0, 940.0),
+            (1700.0, 800.0),
+            (844.0, 390.0),
+            (600.0, 400.0),
+            (700.0, 330.0),
+        ] {
             // (under 900 wide the application's buttons lie over the top of the canvas)
             let inset = if x < 900.0 { 46.0 } else { 0.0 };
             let p = Panels::of(Vec2::new(x, y), inset);
@@ -729,7 +773,12 @@ mod tests {
                 }
                 let norms: Vec<String> = (0..n).map(|i| format!("{:.2}", toy.direction(i).length())).collect();
                 let dims: Vec<String> = (0..n).map(|i| format!("{:.2}", toy.dimensionality(i))).collect();
-                println!("n={n} m={m} S={sparsity} decay={decay} seed={seed}: loss {loss:.4}  lengths [{}]  shares [{}]  bias {:.2}", norms.join(" "), dims.join(" "), toy.b.iter().sum::<f32>() / n as f32);
+                println!(
+                    "n={n} m={m} S={sparsity} decay={decay} seed={seed}: loss {loss:.4}  lengths [{}]  shares [{}]  bias {:.2}",
+                    norms.join(" "),
+                    dims.join(" "),
+                    toy.b.iter().sum::<f32>() / n as f32
+                );
             }
         }
     }
