@@ -1,6 +1,6 @@
 # The idea
 
-A map of the plane takes each point $(x, y)$ to a point $(u, v) = f(x, y)$, and may bend straight lines into curves. Yet near a point $p$ where it is smooth, what it does to a small step from $p$ is very nearly a linear map: a $2 \times 2$ matrix, the Jacobian $J$, made of the four partial derivatives at $p$. It is the derivative of the map, as a slope is the derivative of a curve. You need to know what a partial derivative is (scene surface) and what a matrix does to the plane (scene linmap2).
+A map of the plane takes each point $(x, y)$ to a point $(u, v) = f(x, y)$, and may bend straight lines into curves. Yet near a point $p$ where it is smooth, what it does to a small step from $p$ is nearly a linear map: a $2 \times 2$ matrix, the Jacobian $J$, made of the four partial derivatives at $p$. It is the derivative of the map, as a slope is the derivative of a curve. You need to know what a partial derivative is (scene surface) and what a matrix does to the plane (scene linmap2).
 
 # The mathematics
 
@@ -10,11 +10,11 @@ The map is two functions, $u(x, y)$ and $v(x, y)$. For a small step $h = (h_1, h
 
 $$ f(p + h) \approx f(p) + Jh, \qquad J = \begin{bmatrix} \partial u/\partial x & \partial u/\partial y \\ \partial v/\partial x & \partial v/\partial y \end{bmatrix} $$
 
-with the partial derivatives taken at $p$. Multiply $J$ by the step $(1, 0)$ and you get its first column: where a small step along $x$ goes. The second column is where a step along $y$ goes. So $J$ takes a small square round $p$ to the parallelogram its columns span.
+with the partial derivatives taken at $p$. Multiply $J$ by the step $(1, 0)$ and you get its first column: where a small step along $x$ goes. The second column is where a step along $y$ goes. So $J$ takes a small square of side $s$ round $p$ to a parallelogram with sides $s$ times its columns.
 
 ## How close it is
 
-If $f$ has continuous second derivatives, what $Jh$ leaves out is, near $p$, at most a fixed number times $|h|^2$. So for a square patch of side $s$, the largest misfit between its true image and the parallelogram, as a share of $s$, is at most a fixed number times $s$. Halve a small patch and the share nearly halves, if the second derivatives at $p$ are not all $0$.
+If $f$ has continuous second derivatives, what $Jh$ leaves out is, near $p$, at most a fixed number times $|h|^2$. So for such a square, the largest misfit between its true image and the parallelogram, as a share of $s$, is at most a fixed number times $s$. Halve a small patch and the share nearly halves, if the second derivatives at $p$ are not all $0$.
 
 Example: the bend $f(x, y) = (x + 0.4y^2,\ y + 0.4x^2)$ has
 
@@ -29,7 +29,7 @@ A linear map multiplies every area by the same number, $|\det J|$, where $\det J
 - If $\det J < 0$, the patch is also turned over: an arrow going anticlockwise round it comes out going clockwise.
 - If $\det J = 0$, $J$ presses the plane onto a line or a point. Where $\det J \ne 0$ (and the partial derivatives are continuous), $f$ can be undone near $p$; where $\det J = 0$, no map with a Jacobian can undo it near $p$.
 
-Polar coordinates, $(r, \theta) \mapsto (r\cos\theta,\ r\sin\theta)$, have $\det J = r$: a cell twice as far out is twice as large. Squaring a complex number, $(x, y) \mapsto (x^2 - y^2,\ 2xy)$, has $J$ with rows $(2x, -2y)$ and $(2y, 2x)$: a turn and a stretch, so small squares stay squares (except at $0$, where $J = 0$). The fold $(x, y) \mapsto (x, y^2)$ has $\det J = 2y$: zero on the crease $y = 0$, negative below it.
+Polar coordinates, $(r, \theta) \mapsto (r\cos\theta,\ r\sin\theta)$, have $\det J = r$: a cell twice as far out is twice as large. Squaring a complex number, $(x, y) \mapsto (x^2 - y^2,\ 2xy)$, has $J$ with rows $(2x, -2y)$ and $(2y, 2x)$: a turn and a stretch, so small squares stay nearly square (except at $0$, where $J = 0$). The fold $(x, y) \mapsto (x, y^2)$ has $\det J = 2y$: zero on the crease $y = 0$, negative below it.
 
 # In the picture
 

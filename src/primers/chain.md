@@ -1,6 +1,6 @@
 # The idea
 
-Much of mathematics, and every neural network, is built from maps done one after another. This scene follows a small change through such a chain. Each map stretches or shrinks a small change by its slope, so along the chain the slopes multiply: that is the chain rule. With two variables the slope of a map is a matrix, its Jacobian, and the Jacobian of the whole chain is the product of the Jacobians. Read backwards, the same product carries a gradient from the end of the chain to its start, which is what backpropagation does. You need derivatives and a matrix times a vector.
+Much of mathematics, and nearly every neural network, is built from maps done one after another. This scene follows a small change through such a chain. Each map stretches or shrinks a small change by its slope, so along the chain the slopes multiply: that is the chain rule. With two variables the slope of a map is a matrix, its Jacobian, and the Jacobian of the whole chain is the product of the Jacobians. Read backwards, the same product carries a gradient from the end of the chain to its start, which is what backpropagation does. You need derivatives and a matrix times a vector.
 
 # The mathematics
 
@@ -32,7 +32,7 @@ since both are $\sum_{i,j} u_i J_{ij}\,\mathrm{d}x_j$. So the gradient of $L$ as
 
 ## Why networks are differentiated backwards
 
-For a function of $n$ inputs and one output, forwards finds one slope per sweep, one input direction at a time: $n$ sweeps for the whole gradient. Backwards finds all $n$ in one sweep. A network may have millions of weights, and it has one loss. And a product is no larger than its factors allow, $\|J_g J_f\| \le \|J_g\|\,\|J_f\|$, where $\|J\|$ is the most $J$ lengthens any step: one flat link, such as a layer of tanh units whose inputs are all far from 0, flattens the whole chain.
+For a function of $n$ inputs and one output, forwards finds one slope per sweep, one input direction at a time: $n$ sweeps for the whole gradient. Backwards finds all $n$ in one sweep. A network may have millions of weights, and it has one loss. And a product is no larger than its factors allow, $\|J_g J_f\| \le \|J_g\|\,\|J_f\|$, where $\|J\|$ is the most $J$ lengthens any step: one flat link, such as a layer of tanh units whose inputs are all far from 0 and whose weights are not large, flattens the whole chain unless the other links stretch a great deal.
 
 # In the picture
 

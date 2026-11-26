@@ -236,12 +236,10 @@ mod tests {
             let earlier = all[..i].iter().rposition(|other| other.group == d.group);
             assert!(earlier.is_none_or(|e| e + 1 == i), "{}: its group, {:?}, is split in two in the list", d.id, d.group);
         }
-        // the sections are known ones, in their order (`backprop::GROUP` is not there
-        // until the first of its scenes is written)
+        // the sections are the known ones, in their order
         let mut seen: Vec<&str> = all.iter().map(|d| d.group).collect();
         seen.dedup();
-        let known: Vec<&str> = HEADINGS.iter().copied().filter(|h| seen.contains(h) || *h != backprop::GROUP).collect();
-        assert_eq!(seen, known, "the sections of the catalogue");
+        assert_eq!(seen, HEADINGS, "the sections of the catalogue");
         // every planned scene has a name of its own too, and a written one links nowhere else
         let every = everything();
         for (i, d) in every.iter().enumerate() {

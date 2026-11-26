@@ -1,6 +1,6 @@
 # The idea
 
-The scene "backprop1" follows the gradient back through a network small enough to write every number on a wire. A real network is worked out a layer and a batch at a time, as matrix products, and so is its gradient. This scene shows that sweep, forward to the loss and back, block by block. It needs the chain rule, matrix products and the transpose, and for the last part the rank of a matrix.
+The scene "backprop1" follows the gradient back through a network small enough to write every number on a wire. A real network is worked out a layer and a batch at a time, as matrix products, and so is its gradient. This scene shows that sweep, forward to the loss and back, block by block. It needs the chain rule, matrix products and the transpose, and for the weights' slopes the rank of a matrix.
 
 # The mathematics
 
@@ -40,7 +40,7 @@ whose second row is $-1/2$ times its first. A zero in $a$ (a unit below that was
 
 ## What it costs
 
-The way back multiplies matrices of the forward sizes, two products a layer instead of one: about twice the work. It needs every $A_l$ and gate kept from the way forward, and it never builds a Jacobian (every output against every input), only multiplies a slope by one, as $D_{l+1} W_{l+1}$ does.
+The way back multiplies matrices of the forward sizes, two products a layer instead of one: about twice the work. It needs every $A_l$ and gate kept from the way forward, and it never builds a Jacobian (every output against every input), only its product with a slope, as $D_{l+1} W_{l+1}$ is.
 
 # In the picture
 

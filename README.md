@@ -54,7 +54,7 @@ needs its brackets (`sin(x)`, not `sin x`).
 
 ## What is in it
 
-- **Linear algebra**, as a course in four parts.
+- **Linear algebra**, as a course in seven parts.
   *Vectors and maps*: dot and cross products as a shadow and an area; span and
   independence; linear maps in 2D and 3D with draggable basis vectors; one map after
   another (products, order, inverses); determinants as area and volume; change of basis;
@@ -72,9 +72,12 @@ needs its brackets (`sin(x)`, not `sin x`).
   and angles; compressed sensing; and spreading n directions apart so that the largest
   |dot product| is as small as it can be (line packings: the cube, the icosahedron, and
   the table up to 32 lines).
-  *Special matrices*: a zoo of eleven kinds (symmetric, orthogonal, projections,
-  nilpotent, Markov, ...), each with its defining equation worked out and the region of
-  the complex plane its eigenvalues must lie in; the symmetric and skew-symmetric parts
+  *Special matrices*: a zoo of thirty kinds of 2 × 2 matrix (symmetric, orthogonal,
+  projections, nilpotent, Markov, ...), each with its defining equation worked out, what
+  it does to the plane and the region of the complex plane its eigenvalues must lie in,
+  and a map of which kinds contain which; a second zoo of nineteen kinds of larger matrix
+  known by their pattern (banded, circulant, companion, Toeplitz, Vandermonde, graph
+  Laplacians, ...), with what each pattern buys; the symmetric and skew-symmetric parts
   of a matrix as a stretch plus a spin; projections and reflections; matrices that
   commute, and what the commutator measures when they do not.
   *Factorisations*: LU, QR, eigenvectors, the SVD and the polar form of one matrix as
@@ -86,8 +89,15 @@ needs its brackets (`sin(x)`, not `sin x`).
   rotation (Rodrigues' formula, the logarithm of a rotation); the exponential of a sum
   against the product of the exponentials, and splitting; powers, roots and logarithms
   of a matrix; coupled springs and their normal modes.
-- **Calculus**: derivative / Riemann sums / Taylor polynomials of any `f(x)`; surfaces
-  `z = f(x, y)` with tangent plane and gradient field; seven optimisers on nineteen
+- **Calculus**: derivative / Riemann sums / Taylor polynomials of any `f(x)`; the
+  fundamental theorem (the area so far, its tangent, and a strip shrinking to the curve's
+  height); surfaces `z = f(x, y)` with tangent plane and gradient field; the Jacobian as
+  a curved map seen up close (a patch, its true image and its linear image, zoomed until
+  they agree); the chain rule in three planes, a small step pushed forwards by the
+  Jacobians and a gradient pulled back by their transposes; curvature, the Hessian and
+  Newton's method against gradient descent; Lagrange multipliers (the path touching a
+  contour line, and what the multiplier measures); changing variables in an integral
+  (why polar coordinates bring an extra r); seven optimisers on nineteen
   loss surfaces, each chosen to show one behaviour (ravines, saddles, plateaus, cliffs,
   sharp and flat minima, ...), with a contour map and a loss-against-step chart;
   vector-field flow with thousands of particles; Fourier epicycles (draw your own).
@@ -144,6 +154,29 @@ needs its brackets (`sin(x)`, not `sin x`).
   a check. *How layers fold space*: the input plane carried through the layers, with
   every activation, optimiser and training setting adjustable. Also: building a
   function out of hinges; a true 2D slice of a loss landscape with the optimiser's path.
+- **Backpropagation**: a course of eleven scenes on how the gradient of a loss is handed
+  back through a network, and what each design choice does to it. Every gradient drawn is
+  worked out by reverse-mode differentiation on small matrices (`src/math/autograd.rs`,
+  with networks built from a specification in `src/math/arch.rs`) and tested against
+  finite differences of the loss. *Derivatives by machine*: a formula as a computation
+  graph, one sweep forwards and one back, against forward mode and finite differences.
+  *The smallest network*: two inputs, two hidden units and one output with every number
+  shown, a step at a time. *A layer at a time*: the same sweep in matrices for a batch,
+  a weight's gradient as a sum of outer products. *Where the gradient starts*: outputs
+  and losses in four pairings, and which of them stall. *Activation functions as gates*:
+  saturating, dying and leaking, with a live map of every unit's gate while a network
+  trains. *Gradients through depth*: vanishing and exploding across fifty layers, the
+  starting weights that sit on the edge, and the singular values of the whole stack's
+  Jacobian. *Normalisation*: what batch, layer and RMS normalisation drop from the
+  gradient and what they do to it over depth. *Skip connections*: fifty plain layers
+  against fifty with skips, and the gradient multiplied out into paths (three blocks are
+  eight), with which lengths carry it. *Attention*: the two roads back through a head, by its
+  values and by its pattern. *A transformer*: one loss's gradient at every place of the
+  residual stream, pre-norm against post-norm, with and without skips, before and after
+  training. *The architecture playground*: build an MLP or a transformer (depth, width,
+  activation, normalisation and where it goes, skips, starting weights, optimiser), keep
+  a second design beside it, and compare signals, gradients, the Jacobian's stretch and
+  training itself.
 - **Interpretability**: opening a trained network up. *Superposition*: a toy model
   packing more features than it has dimensions (pairs, a pentagon, polyhedra), and what
   the overlap costs when one feature is switched on alone. *Sparse autoencoders*:

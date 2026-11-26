@@ -1,6 +1,6 @@
 # The idea
 
-Training a network needs the loss's slope with respect to every weight. Backpropagation finds them all in one sweep back from the loss, using the chain rule at every step. This scene does that sweep with every number shown, for a network of two inputs, two hidden units with $\tanh$, one output and nine weights. You need the chain rule and what a network is.
+Training a network needs the loss's slope with respect to every weight. Backpropagation finds them all in one sweep back from the loss, by the chain rule. This scene does that sweep with every number shown, for a network of two inputs, two hidden units with $\tanh$, one output and nine weights. You need the chain rule and what a network is.
 
 # The mathematics
 
@@ -20,7 +20,7 @@ The slope of $\tanh$ is $1 - \tanh^2$, so going back through unit $j$ multiplies
 
 $$ \delta_j = \partial L/\partial z_j = (1 - a_j^2)\, \partial L/\partial a_j, \quad \partial L/\partial w_{jk} = x_k \delta_j, \quad \partial L/\partial b_j = \delta_j $$
 
-Each line is the chain rule. The loss depends on $w_{12}$ only through $z_1$, and $z_1$ changes by $x_2$ for each unit of $w_{12}$, so $\partial L/\partial w_{12} = x_2 \delta_1$. The pattern is the same on every wire: a weight's slope is what came in on its wire going forward, times what came back to the unit it feeds. A bias is a weight on a wire that always carries 1.
+Each line is the chain rule. The loss depends on $w_{12}$ only through $z_1$, and $z_1$ changes by $x_2$ for each unit of $w_{12}$, so $\partial L/\partial w_{12} = x_2 \delta_1$. On every wire, a weight's slope is what came in on its wire going forward, times what came back to the unit it feeds. A bias is a weight on a wire that always carries 1.
 
 With the scene's starting numbers $x = (1, 0.5)$, $y = 1$: $z_1 = 0.5 - 0.15 + 0.1 = 0.45$ and $a_1 = \tanh 0.45 \approx 0.422$; $z_2 = -0.2$ and $a_2 \approx -0.197$; $\hat y \approx 0.514$ and $L \approx 0.118$. Back: $\delta \approx -0.486$, $\partial L/\partial a_1 = 0.7 \times (-0.486) \approx -0.340$, $1 - a_1^2 \approx 0.822$, so $\delta_1 \approx -0.280$ and $\partial L/\partial w_{12} = 0.5 \times (-0.280) = -0.140$.
 
@@ -36,7 +36,7 @@ A step of gradient descent moves every weight against its slope, with a rate $\e
 
 $$ w \leftarrow w - \eta\, \partial L/\partial w $$
 
-For a small $\eta$ the loss falls by about $\eta$ times the sum of the squared slopes; too long a step overshoots and lands higher than it started. With four examples, $L$ is the mean of their own losses $\ell_i = \tfrac12 (\hat y - y)^2$, and every slope is the mean of their four slopes. Two hidden units that start exactly alike (weights in, bias, weight out) get the same slopes, so they stay alike and act as one unit.
+For a small $\eta$ the loss falls by about $\eta$ times the sum of the squared slopes; too long a step can overshoot and land higher than it started. With four examples, $L$ is the mean of their own losses $\ell_i = \tfrac12 (\hat y - y)^2$, and every slope is the mean of their four slopes. Two hidden units that start exactly alike (weights in, bias, weight out) get the same slopes, so they stay alike and act as one unit.
 
 # In the picture
 

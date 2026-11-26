@@ -10,7 +10,7 @@ Write the map as $(x, y) = T(u, v)$. Cut the rectangle of $(u, v)$ into cells, e
 
 $$ \sum f(x_i, y_i) \cdot (\text{area of patch } i) $$
 
-where $(x_i, y_i)$ is a point of patch $i$; for $f$ continuous, the smaller the cells, the closer.
+where $(x_i, y_i)$ is a point of patch $i$; for $f$ continuous, it settles on the integral as the cells shrink.
 
 ## The factor
 

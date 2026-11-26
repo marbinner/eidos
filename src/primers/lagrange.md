@@ -10,7 +10,7 @@ The gradient $\nabla f = (\partial f/\partial x, \partial f/\partial y)$ points 
 
 $$ \nabla f = \lambda \nabla g + h\,T, \qquad \lambda = \frac{\nabla f \cdot \nabla g}{|\nabla g|^2}, \quad h = \nabla f \cdot T $$
 
-If $h$ is not 0, one way along the path is uphill, and the point is not the highest. So at the highest point $h = 0$: the path touches the contour line of $f$ there instead of crossing it, and
+If $h \ne 0$, one way along the path is uphill, and the point is not the highest. So at the highest point $h = 0$: the path touches the contour line of $f$ instead of crossing it (if $\nabla f \ne 0$), and
 
 $$ \nabla f = \lambda \nabla g, \qquad g(x, y) = c $$
 
@@ -22,7 +22,7 @@ The lowest point, and any point where $f$ stops changing along the path, satisfi
 
 ## The multiplier is a price
 
-Write $f^*(c)$ for the highest value of $f$ on the path $g = c$. Raise $c$ by a little, $\delta c$: the new path lies a distance $\delta c / |\nabla g|$ further out, along $\nabla g$. Stepping there from the old highest point raises $f$ by about $\nabla f \cdot \nabla g \, \delta c / |\nabla g|^2 = \lambda \, \delta c$; moving along the new path to its own highest point changes $f$ only by an amount of the size of $\delta c^2$, because $f$ had stopped changing along the path. So, wherever the highest point moves smoothly with $c$,
+Write $f^*(c)$ for the highest value of $f$ on the path $g = c$. Raise $c$ by a little, $\delta c$: the new path lies about $\delta c / |\nabla g|$ further out, along $\nabla g$. Stepping there from the old highest point raises $f$ by about $\nabla f \cdot \nabla g \, \delta c / |\nabla g|^2 = \lambda \, \delta c$; moving along the new path to its own highest point changes $f$ only by an amount of the size of $\delta c^2$, because $f$ had stopped changing along the path. So, wherever the highest point moves smoothly with $c$,
 
 $$ \frac{\mathrm{d} f^*}{\mathrm{d} c} = \lambda $$
 

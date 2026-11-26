@@ -12,7 +12,7 @@ pub const DEF: SceneDef = SceneDef {
     id: "chain",
     title: "The chain rule: Jacobians multiply",
     group: "Calculus",
-    blurb: "One map after another: small changes pass through each in turn, forwards as columns and backwards as rows, which is all that backpropagation is.",
+    blurb: "One map after another: small changes pass through each in turn, forwards as columns and backwards as rows, which is the heart of backpropagation.",
     make: |_| Box::new(ChainRule::new()),
 };
 
@@ -880,7 +880,7 @@ const TRIALS: [Trial; 5] = [
     },
     Trial {
         label: "a small step pushed forwards",
-        look_for: r"The cyan step $\mathrm{d}x = (0.30, 0.12)$ at $p$ is carried to $J_f\,\mathrm{d}x = (0.35, 0.26)$ at $f(p)$, then to $J_g J_f\,\mathrm{d}x = (0.25, 0.60)$ at $g(f(p))$, each Jacobian taken where the point has got to. That is $J\,\mathrm{d}x$ with $J = J_g J_f$. The yellow curves are where the step really goes: they end $0.01$ and $0.08$ from the arrows' tips. Drag the cyan tip to halve the step and those misses fall to less than a third: for small steps a miss shrinks as the square of the step.",
+        look_for: r"The cyan step $\mathrm{d}x = (0.30, 0.12)$ at $p$ is carried to $J_f\,\mathrm{d}x = (0.35, 0.26)$ at $f(p)$, then to $J_g J_f\,\mathrm{d}x = (0.25, 0.60)$ at $g(f(p))$, each Jacobian taken where the point has got to. That is $J\,\mathrm{d}x$ with $J = J_g J_f$. The yellow curves are where the step really goes: they end $0.01$ and $0.08$ from the arrows' tips. Drag the cyan tip to halve the step and those misses fall to less than a third: for small steps a miss shrinks at least as fast as the square of the step.",
         show: Show::Forwards,
         ..START
     },
@@ -897,7 +897,7 @@ const TRIALS: [Trial; 5] = [
     },
     Trial {
         label: "one flat link: the chain goes flat",
-        look_for: r"Here the two units of the tanh layer get the inputs $-2.6$ and $-2.5$, far out where tanh is flat (saturated): their slopes $1 - \tanh^2$ are $0.021$ and $0.024$, and $J_g$ stretches no step by more than $0.036$. $J_f$ stretches by up to $1.16$, but a product can stretch by no more than its factors allow, $\|J\| \le 0.036 \times 1.16$: here it is $0.041$. The step reaches $z$ as a dot, and the gradient comes back to $x$ less than a twentieth of the size of $u$. One flat link flattens the whole chain: the vanishing gradient, in miniature.",
+        look_for: r"Here the two units of the tanh layer get the inputs $-2.6$ and $-2.5$, far out where tanh is flat (saturated): their slopes $1 - \tanh^2$ are $0.021$ and $0.024$, and $J_g$ stretches no step by more than $0.036$. $J_f$ stretches by up to $1.16$, but a product can stretch by no more than its factors allow, $\|J\| \le 0.036 \times 1.16$: here it is $0.041$. The step reaches $z$ as a dot, and the gradient comes back to $x$ less than a twentieth of the size of $u$. One flat link flattens the whole chain, unless the other links stretch a great deal: the vanishing gradient, in miniature.",
         p: [-2.0, -0.45],
         ..START
     },
@@ -1422,7 +1422,7 @@ impl Scene for ChainRule {
             r"Do one map and then another: $z = g(f(x))$. Near a point $p$, a small step $\mathrm{d}x$ becomes about $J_f\,\mathrm{d}x$ at $f(p)$, where $J_f$ is the Jacobian of $f$, its matrix of slopes; and that becomes about $J_g J_f\,\mathrm{d}x$ at $g(f(p))$. So the Jacobian of the whole is the product of the Jacobians, each taken at the point the one before delivers:",
         );
         ui::equation(ui, r"J_{g \circ f}(p) = J_g\bigl(f(p)\bigr)\,J_f(p)");
-        ui::note(ui, r"Read the other way, the same product carries the gradient $u$ of a final number $L$ back from $z$ to $x$, through the transposes $J_g^\top$ and then $J_f^\top$. That backward sweep is all that backpropagation is.");
+        ui::note(ui, r"Read the other way, the same product carries the gradient $u$ of a final number $L$ back from $z$ to $x$, through the transposes $J_g^\top$ and then $J_f^\top$. That backward sweep is the heart of backpropagation.");
 
         ui::section(ui, "Things to try");
         for (k, trial) in TRIALS.iter().enumerate() {
@@ -1498,7 +1498,7 @@ impl Scene for ChainRule {
             "Forwards, backwards:",
             r"forwards (forward mode) pushes one step through and finds $J\,\mathrm{d}x$: with $\mathrm{d}x$ along an axis, one column of $J$. Backwards (reverse mode) pulls one gradient back and finds $J^\top u$: with $u$ along an axis, one row of $J$. For a function of $n$ inputs and one output, backwards finds all $n$ slopes in one sweep, where forwards needs $n$ sweeps, one for each input. That is why the gradient of a network, which may have millions of weights and has one loss, is worked out backwards.",
         );
-        ui::term(ui, "Stretch:", r"$\|J\|$, the most $J$ lengthens any step (its largest singular value). $\|J_g J_f\| \le \|J_g\|\,\|J_f\|$: a product is no larger than its factors allow, so one flat link flattens the whole chain.");
+        ui::term(ui, "Stretch:", r"$\|J\|$, the most $J$ lengthens any step (its largest singular value). $\|J_g J_f\| \le \|J_g\|\,\|J_f\|$: a product is no larger than its factors allow, so one flat link flattens the whole chain, unless the others stretch a great deal.");
         ui::term(ui, "Saturated:", r"a tanh unit whose input is far from 0: its output is near $1$ or $-1$, and its slope, $1 - \tanh^2$, is near 0.");
 
         ui::section(ui, "Numbers");

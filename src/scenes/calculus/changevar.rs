@@ -1193,7 +1193,7 @@ impl Scene for ChangeVar {
     fn ui(&mut self, ui: &mut egui::Ui, _: &Gfx) {
         ui::note(ui, r"An integral over a region is a sum of $f$ times small areas. Describe the region by other coordinates, $(x, y) = T(u, v)$, and a rectangle of $(u, v)$, cut into cells, is carried onto it. A small cell, $\Delta u$ by $\Delta v$, lands as a small patch that is nearly a parallelogram, of area about $|\det J|\,\Delta u\,\Delta v$, where $J$ is the Jacobian of $T$. So");
         ui::equation(ui, r"\iint_{\text{region}} f\,dx\,dy = \iint_{\text{rectangle}} f(T(u, v))\,|\det J|\,du\,dv");
-        ui::note(ui, r"On the left the rectangle, on the right the region, each cell tinted by how much $T$ stretches it. Under them, the sum of $f$ over the cells is worked out three ways, and charted as the cells shrink: two ways close in on the exact integral, and the one without the factor, in general, on another number.");
+        ui::note(ui, r"On the left the rectangle, on the right the region, each cell tinted by how much $T$ stretches it. Under them, the sum of $f$ over the cells is worked out three ways, and charted as the cells shrink: two ways settle on the exact integral, and the one without the factor, in general, on another number.");
 
         ui::section(ui, "Things to try");
         for (k, trial) in TRIALS.iter().enumerate() {

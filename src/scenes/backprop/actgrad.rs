@@ -1259,7 +1259,7 @@ impl Scene for ActGrad {
                 self.restart();
             }
         });
-        ui::note(ui, "Plain gradient descent: every weight moves by the rate times its gradient, so a small gradient makes a small step. The starting bias is what every hidden unit's bias starts at (usually 0). An optimiser such as Adam scales each weight's step by the size of its recent gradients, which makes up for much of what small gates take away, though not for gates that are exactly 0.");
+        ui::note(ui, "Plain gradient descent: every weight moves by the rate times its gradient, so a small gradient makes a small step. The starting bias is what every hidden unit's bias starts at (usually 0). An optimiser such as Adam divides each weight's step by the size of its recent gradients, which makes up for much of what small gates take away, though not for gates that are exactly 0.");
 
         ui::section(ui, "Reading the picture");
         ui::key(

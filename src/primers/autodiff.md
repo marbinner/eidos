@@ -40,13 +40,13 @@ A slope can also be estimated from two values:
 
 $$ \frac{f(x + h) - f(x - h)}{2h} = f'(x) + \frac{f'''(x)}{6}\,h^2 + \cdots $$
 
-With too large an $h$, the $h^2$ term is the error. With too small an $h$, rounding is: a computer keeps about 16 significant digits, so each value of $f$ is off by about $10^{-16}$ of its size, which dividing by $2h$ makes roughly $10^{-16}/h$ when $f$ is near 1. Between the two lies a valley; at its floor about ten digits are right. The sweeps are off only by the rounding in their own few steps.
+With too large an $h$, the $h^2$ term is the error. With too small an $h$, rounding is: in double precision a computer keeps about 16 significant digits, so each value of $f$ is off by about $10^{-16}$ of its size, which dividing by $2h$ makes roughly $10^{-16}/h$ when $f$ is near 1. Between the two lies a valley; here, at its floor, about ten digits are right. The sweeps are off only by rounding in their own few steps.
 
 # In the picture
 
 - Each box is a step, the inputs on the left (at the top on a tall screen); the dot in an input's box sets it.
 - Cyan numbers are values, pink ones the slopes $\bar u$, blue ones the tangents $\dot u$ of forward mode; the number on an arrow is the arrow's slope.
-- The lit box is the one being worked out, with its sum written under the graph.
+- The lit box is the one being worked out, with its arithmetic written under the graph.
 - The chart is the difference's error against $h$, its two causes dashed.
 - At the corner of $\max(0, z)$ there is no slope: the sweep puts 0 there, and the difference gives the average of the two sides.
 

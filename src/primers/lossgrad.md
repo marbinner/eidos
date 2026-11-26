@@ -1,6 +1,6 @@
 # The idea
 
-A network that sorts things into classes ends with one raw score for each class, its logits. An output function makes a prediction of them, and a loss says how wrong it is. The backward sweep starts with the loss's slope with respect to each logit: every gradient further back is this one, carried through the layers by the chain rule. Its size depends on how output function and loss are paired, and one pairing goes nearly silent just when the network is most wrong. You need derivatives, the chain rule, and the natural logarithm $\ln$.
+A network that sorts things into classes ends with one raw score for each class, its logits. An output function makes a prediction of them, and a loss says how wrong it is. The backward sweep starts with the loss's slope with respect to each logit: every gradient further back is this one, carried back by the chain rule. Its size depends on how output function and loss are paired, and one pairing goes nearly silent just when the network is most wrong. You need derivatives, the chain rule, and the natural logarithm $\ln$.
 
 # The mathematics
 
@@ -14,7 +14,7 @@ The cross-entropy is $L = -\sum_k y_k \ln p_k$, here $-\ln p_t$, which is also $
 
 $$ \frac{\partial L}{\partial s_k} = p_k - y_k $$
 
-These slopes add up to $1 - 1 = 0$, and none is larger than 1 in size. The target's is $p_t - 1$: nearly $-1$, the strongest pull there is, when the target gets almost no probability.
+These slopes add up to $1 - 1 = 0$, and none is larger than 1 in size. The target's is $p_t - 1$: nearly $-1$, the strongest pull this loss gives, when the target gets almost no probability.
 
 Example: $s = (1, 2, 0, -1)$ with class 1 the target. Then $e^{s} = (2.718, 7.389, 1, 0.368)$, adding up to 11.475, so $p = (0.237, 0.644, 0.087, 0.032)$ and the slopes are $(-0.763, 0.644, 0.087, 0.032)$, which add up to 0.
 
@@ -32,7 +32,7 @@ The same sigmoid scored by its own cross-entropy, $-[y \ln \sigma + (1 - y) \ln(
 
 With a temperature $T$, $p = \operatorname{softmax}(s/T)$ and the slope is $(p - y)/T$, never more than $1/T$ in size.
 
-With label smoothing the truth is $1 - \varepsilon$ for the target and $\varepsilon/(K - 1)$ for the others. Then $p = y$ happens at finite logits, where the slope is 0: with the target's logit $\ln((1 - \varepsilon)(K - 1)/\varepsilon)$ above each other one, $\ln 27 = 3.30$ for $\varepsilon = 0.1$ and four classes. With the hard truth $p_t$ never reaches 1, and the logits are pushed apart for ever.
+With label smoothing the truth is $1 - \varepsilon$ for the target and $\varepsilon/(K - 1)$ for the others. Then $p = y$ happens at finite logits, where the slope is 0: with the target's logit $\ln((1 - \varepsilon)(K - 1)/\varepsilon)$ above each other one, $\ln 27 = 3.30$ for $\varepsilon = 0.1$ and four classes. With the hard truth $p_t$ never reaches 1, and the slope never stops pushing the logits apart.
 
 The softmax's own Jacobian is $\partial p/\partial s = \operatorname{diag}(p) - p\,p^\top$. Times the loss's slope with respect to each $p_k$, which is $-y_k/p_k$, it gives $p - y$ again.
 

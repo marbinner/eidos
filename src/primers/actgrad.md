@@ -1,6 +1,6 @@
 # The idea
 
-To train a network, the gradient of its loss is passed backwards, layer by layer, to every weight. On the way it goes through every unit's activation, and there, by the chain rule, it is multiplied by the activation's slope at the input the unit had on the way forward. That slope is the unit's gate. This scene compares the gates of nine activations, and what they do in a deep network and in a network that learns. It needs the chain rule (scene "chain") and what a network's layer computes (scene "mlp").
+To train a network, the gradient of its loss is passed backwards, layer by layer, to every weight. On the way it goes through every unit's activation, and there, by the chain rule, it is multiplied by the activation's slope at the input the unit had on the way forward. That slope is the unit's gate. This scene compares the gates of nine activations, and what they do in a deep network and in a network that learns. It needs the chain rule and what a network's layer computes.
 
 # The mathematics
 
@@ -32,11 +32,11 @@ Going back through a layer, the gradient is multiplied by the layer's weights (t
 
 $$ \left(\tfrac{1}{2}\right)^{10} = \tfrac{1}{1024} $$
 
-of the mean square, $1/32 \approx 0.031$ of the typical size. The scene's ten layers of 32 units measure 0.027; the rule is exact only for very wide layers.
+of the mean square, $1/32 \approx 0.031$ of the typical size. The scene's ten layers of 32 units measure 0.027: the rule is an average over random weights, and draws scatter around it.
 
 ## Dead units
 
-A unit whose gate is shut for every example is dead. Every term of its weights' gradients has its gate as a factor, so they are 0, and plain gradient descent leaves those weights as they are. In the first layer, whose inputs are the data, a dead unit stays dead for good.
+A unit whose gate is shut for every example is dead. For ReLU, every term of its weights' gradients has its gate, 0, as a factor, so they are 0, and plain gradient descent leaves those weights as they are. In the first layer, whose inputs are the data, a dead ReLU unit stays dead for good.
 
 # In the picture
 

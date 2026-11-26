@@ -26,7 +26,7 @@ Example: $f(t) = t^2$, $x = 1$, $h = 0.1$. The strip's area is $(1.1^3 - 1^3)/3 
 
 So:
 
-- $A$ climbs where $f > 0$ and falls where $f < 0$. Its tops and bottoms are where $f$ crosses the axis, and it is steepest where $f$ is largest.
+- $A$ climbs where $f > 0$ and falls where $f < 0$. Its tops and bottoms are where $f$ crosses the axis, and it is steepest where $|f|$ is largest.
 - Moving the start $a$ adds the same amount to $A(x)$ for every $x$, the area from the new start to the old: the whole curve shifts up or down, and no slope changes.
 - Where $f$ jumps at $x$, a thin strip to the right of $x$ has the height just right of the jump, and one to the left the height just left of it: $A$ has two slopes there, a corner, and no tangent. It does not jump, though: a strip's area is at most $h$ times the largest size of $f$ on it, which shrinks with $h$ when $f$ is bounded.
 
@@ -38,7 +38,7 @@ $$ \int_a^b f(t)\,\mathrm{d}t = F(b) - F(a) $$
 
 Example: $F(x) = -\cos x$ has slope $\sin x$. The area under $\sin$ from $0.5$ to $2.5$ is $-\cos 2.5 + \cos 0.5 = 0.8011 + 0.8776 = 1.6787$, as a fine sum of thin strips confirms.
 
-Two cautions. $F$ must have slope $f$ all the way from $a$ to $b$: $\ln|x|$ has slope $1/x$ on each side of 0, but $1/x$ has no area across 0. And the bell $e^{-x^2/2}$ has no $F$ made of the usual functions. Its $A$ is a new function: as $a$ moves far to the left, $A/\sqrt{2\pi}$ becomes the normal distribution's cumulative curve.
+Two cautions. $F$ must have slope $f$ all the way from $a$ to $b$: $\ln|x|$ has slope $1/x$ on each side of 0, but $1/x$ has no area across 0. And the bell $e^{-x^2/2}$ has no $F$ made of the usual functions. Its $A$ is a new function: as $a$ moves far to the left, $A/\sqrt{2\pi}$ closes in on the normal distribution's cumulative curve.
 
 # In the picture
 

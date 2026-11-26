@@ -1288,7 +1288,7 @@ impl Scene for BackpropMat {
         ui::term(
             ui,
             "Vector–Jacobian product:",
-            &format!(r"$D_3 W_3$ is what the Jacobian of $Z_3$ with respect to $A_2$ (every output of every example against every input) does to $D_3$, without that Jacobian being built: it would be ${} \times {}$, mostly zeros, since examples do not mix.", 3 * n, w * n),
+            &format!(r"$D_3 W_3$ is what the Jacobian of $Z_3$ with respect to $A_2$ (every output of every example against every input) does to $D_3$, without that Jacobian being built: it would be ${} \times {}$, with 0 wherever the output and the input belong to different examples, since examples do not mix.", 3 * n, w * n),
         );
 
         ui::section(ui, "Numbers");

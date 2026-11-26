@@ -1832,7 +1832,7 @@ impl Scene for Lagrange {
 
     fn ui(&mut self, ui: &mut egui::Ui, _: &Gfx) {
         self.refresh();
-        ui::note(ui, r"Where on a path across a hillside is the path highest? The hill is $f(x, y)$, drawn as contour lines (lines of equal height); the path is the curve $g(x, y) = c$. Where the path crosses a contour line, one way along it leads uphill; so at its highest point it cannot cross the contour line there, only touch it. There the gradient $\nabla f$, which is at right angles to the contour line, is also at right angles to the path, as $\nabla g$ is:");
+        ui::note(ui, r"Where on a path across a hillside is the path highest? The hill is $f(x, y)$, drawn as contour lines (lines of equal height); the path is the curve $g(x, y) = c$. Where the path crosses a contour line and $\nabla f \ne 0$, one way along it leads uphill; so at its highest point, if $\nabla f \ne 0$ there, it cannot cross the contour line, only touch it. There the gradient $\nabla f$, which is at right angles to the contour line, is also at right angles to the path, as $\nabla g$ is:");
         ui::equation(ui, r"\nabla f = \lambda \nabla g, \quad g(x, y) = c");
         ui::note(ui, r"The number $\lambda$, the Lagrange multiplier, says what the constraint costs: raise $c$ a little, and the highest value changes by about $\lambda$ times as much.");
 
