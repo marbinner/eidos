@@ -2443,7 +2443,7 @@ impl Scene for Patterns {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _: &Gfx) {
-        ui::note(ui, r"Many of the matrices that matter are large, and are known by their pattern: where their zeros are, how their entries repeat, what their rows or columns add up to. A pattern is worth knowing because it pays, in the numbers it takes to store the matrix, in the work it takes to solve $Ax = b$, and in where its eigenvalues can lie. Choose a kind with the buttons over the picture, and drag the bars of $x$: the matrix acts on a list of $n$ numbers.");
+        ui::note(ui, r"Many of the matrices that matter are large, and are known by their pattern: where their zeros are, how their entries repeat, what their rows or columns add up to. A pattern is worth knowing because it can pay, in the numbers it takes to store the matrix, in the work it takes to solve $Ax = b$, and in where its eigenvalues can lie. Choose a kind with the buttons over the picture, and drag the bars of $x$: the matrix acts on a list of $n$ numbers.");
 
         ui::section(ui, "Things to try");
         for (k, t) in TRIALS.iter().enumerate() {
@@ -2498,7 +2498,7 @@ impl Scene for Patterns {
         if ui::checkbox(ui, &mut discs, "the Gershgorin discs").changed() {
             self.set_discs(discs);
         }
-        ui::note(ui, "A disc about each diagonal entry, as wide as the rest of its row's sizes added up: every eigenvalue of every matrix lies in one of them.");
+        ui::note(ui, "A disc about each diagonal entry, its radius the rest of its row's sizes added up: every eigenvalue of every matrix lies in one of them.");
 
         ui::section(ui, "Reading the picture");
         ui::key(
@@ -2635,7 +2635,7 @@ const TRIALS: [Trial; 5] = [
     },
     Trial {
         label: "drag a root of the polynomial",
-        look_for: r"The white dots in the plane are roots of $p(\lambda) = (\lambda - r_1) \cdots (\lambda - r_5)$; drag one (its mirror image below the real line follows, so that $p$ has real coefficients). Those coefficients, signs changed, are the last column of $C$, and the eigenvalues of $C$, the orange dots, stay on the roots wherever they go: $\det(\lambda I - C) = p(\lambda)$. This is one way roots of polynomials are computed in practice.",
+        look_for: r"The white dots in the plane are roots of $p(\lambda) = (\lambda - r_1) \cdots (\lambda - r_5)$; drag one (its mirror image below the real line follows, so that $p$ has real coefficients; the one real root slides along the real line). Those coefficients, signs changed, are the last column of $C$, and the eigenvalues of $C$, the orange dots, stay on the roots wherever they go: $\det(\lambda I - C) = p(\lambda)$. This is one way roots of polynomials are computed in practice.",
     },
 ];
 

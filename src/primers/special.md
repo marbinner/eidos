@@ -12,13 +12,13 @@ $$ A^\top = A \quad \text{(symmetric)}, \qquad A^\top A = I \quad \text{(orthogo
 
 A $2 \times 2$ matrix has 4 numbers; each independent equation fixes one. $A^\top = A$ is one equation, $a_{12} = a_{21}$, so a symmetric matrix has 3 free numbers. $A^\top A$ is always symmetric, so $A^\top A = I$ is three equations, and an orthogonal matrix has 1 free number: an angle. A strict inequality fixes none: matrices with positive entries have all 4 free.
 
-The families group the tests: where the zeros are, symmetry, what the map keeps, what doing it twice does, signs, rank, and names of their own.
+The families group the tests: where the zeros are, symmetry, what the map keeps, what doing it again does, signs, rank, and names of their own.
 
 ## The equation decides the eigenvalues
 
-If $Av = \lambda v$ with $v \ne 0$, then $A^2 v = \lambda^2 v$. So for a projection $\lambda^2 v = \lambda v$, and $\lambda$ is $0$ or $1$. For an involution, $A^2 = I$, $\lambda^2 = 1$. An orthogonal matrix keeps lengths, $|Av| = |v|$, so $|\lambda| = 1$: its eigenvalues lie on the unit circle.
+If $Av = \lambda v$ with $v \ne 0$, then $A^2 v = \lambda^2 v$. So for a projection $\lambda^2 v = \lambda v$, and $\lambda$ is $0$ or $1$. For an involution, $A^2 = I$, $\lambda^2 = 1$. An orthogonal matrix keeps lengths, $|Av| = |v|$ (complex $v$ too, with $|v|^2 = |v_1|^2 + |v_2|^2$), so $|\lambda| = 1$: its eigenvalues lie on the unit circle.
 
-A test made of inequalities works through discs. Each Gershgorin disc is centred on a diagonal entry, with the size of the other entry of its row as radius, and every eigenvalue lies in one of them. If each diagonal entry outweighs the rest of its row (diagonally dominant), $0$ is in neither disc, so $0$ is not an eigenvalue and $A$ has an inverse.
+Some tests made of inequalities work through discs. Each Gershgorin disc is centred on a diagonal entry, with the size of the other entry of its row as radius, and every eigenvalue lies in one of them. If each diagonal entry outweighs the rest of its row (diagonally dominant), $0$ is in neither disc, so $0$ is not an eigenvalue and $A$ has an inverse.
 
 ## The map of the zoo
 
@@ -38,7 +38,7 @@ is an involution. It is not orthogonal: $A$ sends $(0, 1)$ to $(1, -1)$, of leng
 
 Orthogonal matrices survive products, since $(AB)^\top AB = B^\top A^\top A B = I$. For symmetric $A$ and $B$, $(AB)^\top = B^\top A^\top = BA$, so $AB$ is symmetric exactly when $AB = BA$.
 
-Example: write $J$ for the quarter turn, with $J^2 = -I$. Then $aI + bJ$ multiplies like the complex number $a + bi$, because $i^2 = -1$ too. With $A = I + 0.5J$ and $B = 1.2I + 0.9J$,
+Example: the quarter turn has $J^2 = -I$. Then $aI + bJ$ multiplies like the complex number $a + bi$, because $i^2 = -1$ too. With $A = I + 0.5J$ and $B = 1.2I + 0.9J$,
 
 $$ (1 + 0.5i)(1.2 + 0.9i) = 1.2 - 0.45 + (0.9 + 0.6)i = 0.75 + 1.5i $$
 

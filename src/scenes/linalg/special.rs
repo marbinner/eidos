@@ -632,8 +632,8 @@ impl Kind {
             Kind::Rotation => r"its eigenvalues $\cos\theta \pm i \sin\theta$ lie on the unit circle",
             Kind::Reflection => r"its eigenvalues are $1$, along the mirror, and $-1$, across it",
             Kind::DetOne => r"its eigenvalues multiply to $1$: $\lambda$ and $1/\lambda$ on the real line, or a pair on the unit circle",
-            Kind::Projection => r"applied twice it does nothing more; its eigenvalues are $0$ and $1$",
-            Kind::OrthProjection => r"its eigenvalues are $0$ and $1$, and its eigenlines are at right angles",
+            Kind::Projection => r"applied twice it does nothing more; its eigenvalues are $0$ and $1$ ($0$ and $I$ have one of them twice)",
+            Kind::OrthProjection => r"its eigenvalues are $0$ and $1$ ($0$ and $I$ have one of them twice), and its eigenlines are at right angles",
             Kind::Involution => r"applied twice it undoes itself; its eigenvalues are $1$ and $-1$ ($I$ and $-I$ have one twice)",
             Kind::Nilpotent => r"its only eigenvalue is $0$; unless $A = 0$, it has a single eigenline",
             Kind::Shear => r"its only eigenvalue is $1$, with a single eigenline; it keeps areas",
@@ -1184,7 +1184,7 @@ fn does(kind: Kind, m: DMat2) -> String {
         Kind::RankOne => r"squashes the plane onto one line: $Ax = (v \cdot x)\,u$".into(),
         Kind::Permutation => r"swaps the two coordinates: a mirror in the line $y = x$".into(),
         Kind::Companion => format!("sends $(1, 0)$ to $(0, 1)$, and $(0, 1)$ to its last column, ${}$", tuple(&[b, d], 2)),
-        Kind::JordanBlock => format!(r"multiplies the $x$ axis by $\lambda = {}$ and slides every other point along it", num(a, 2)),
+        Kind::JordanBlock => format!(r"multiplies every point by $\lambda = {}$, and then slides it along the $x$ direction by its height", num(a, 2)),
         Kind::Any => String::new(),
     }
 }
@@ -1453,7 +1453,7 @@ impl Kind {
             (Op::Transpose, Positive) => "The transpose has the same entries: positive.",
             (Op::Transpose, Markov) => r"The transpose of a Markov matrix has rows adding to $1$; it is one only if $A$'s rows add to $1$ too (doubly stochastic).",
             (Op::Transpose, Doubly) => "A doubly stochastic matrix of the plane is symmetric: its own transpose.",
-            (Op::Transpose, Dominant) => "The transpose need not be diagonally dominant: it is dominant by columns, not by rows.",
+            (Op::Transpose, Dominant) => "The transpose need not be diagonally dominant: it is dominant by columns, and need not be by rows.",
             (Op::Transpose, Singular) => r"$\det A^\top = \det A = 0$.",
             (Op::Transpose, RankOne) => r"$(uv^\top)^\top = vu^\top$: of rank one too.",
             (Op::Transpose, Permutation) => r"In the plane each is its own transpose: $I^\top = I$, $S^\top = S$.",
@@ -5141,7 +5141,7 @@ mod tests {
         let n = Kind::Normal.default_a();
         assert!(close(n, DMat2::from_angle(0.6f64.atan2(0.9)) * 0.9f64.hypot(0.6), 1e-12));
         assert_eq!(say(Kind::Scalar), "multiplies every vector by $1.30$");
-        assert_eq!(say(Kind::JordanBlock), r"multiplies the $x$ axis by $\lambda = 1.20$ and slides every other point along it");
+        assert_eq!(say(Kind::JordanBlock), r"multiplies every point by $\lambda = 1.20$, and then slides it along the $x$ direction by its height");
         assert_eq!(say(Kind::Companion), "sends $(1, 0)$ to $(0, 1)$, and $(0, 1)$ to its last column, $(−0.50, 1.50)$");
         assert_eq!(say(Kind::Indefinite), r"stretches the orange line by $\lambda = 1.67$ and reverses the purple one, at right angles to it, by $-1.17$".replace('-', "−"));
         assert_eq!(say(Kind::Positive), r"stretches most along the orange line, by $\lambda = 2.00$, which runs through the positive quarter");

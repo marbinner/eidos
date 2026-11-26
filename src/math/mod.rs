@@ -1,5 +1,7 @@
 //! Mathematics shared by the scenes.
 
+pub mod arch;
+pub mod autograd;
 pub mod causal;
 pub mod complex;
 pub mod expr;
