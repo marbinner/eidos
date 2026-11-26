@@ -1,57 +1,58 @@
 # The idea
 
-Many useful matrices obey one equation, such as $A^\top = A$, which limits what the map can do to the plane and where its eigenvalues can lie. The scene shows eleven such kinds of $2 \times 2$ matrix, and needs matrices as maps of the plane, eigenvalues, and complex numbers $a + bi$ as points $(a, b)$.
+Many useful matrices pass one test: an equation such as $A^\top = A$, or a condition such as "every entry is above $0$". Each test makes a kind, and the scene has thirty kinds of $2 \times 2$ matrix in seven families. The test limits what the map does to the plane and where its eigenvalues lie, and some kinds lie inside others. You need matrices as maps, the transpose, eigenvalues, and complex numbers $a + bi$ as points $(a, b)$.
 
 # The mathematics
 
 ## A kind is an equation
 
-The transpose $A^\top$ is $A$ flipped over its diagonal, $(A^\top)_{ij} = a_{ji}$. It moves $A$ across a dot product:
+The transpose $A^\top$ is $A$ flipped over its diagonal, $(A^\top)_{ij} = a_{ji}$. Three kinds and their tests:
 
-$$ x \cdot Ay = A^\top x \cdot y $$
+$$ A^\top = A \quad \text{(symmetric)}, \qquad A^\top A = I \quad \text{(orthogonal)}, \qquad A^2 = A \quad \text{(a projection)} $$
 
-Each kind is one equation, three with a condition:
+A $2 \times 2$ matrix has 4 numbers; each independent equation fixes one. $A^\top = A$ is one equation, $a_{12} = a_{21}$, so a symmetric matrix has 3 free numbers. $A^\top A$ is always symmetric, so $A^\top A = I$ is three equations, and an orthogonal matrix has 1 free number: an angle. A strict inequality fixes none: matrices with positive entries have all 4 free.
 
-- symmetric $A^\top = A$; skew-symmetric $A^\top = -A$; normal $AA^\top = A^\top A$;
-- orthogonal $A^\top A = I$, which says $|Ax| = |x|$ for every $x$;
-- projection $A^2 = A$; nilpotent $A^2 = 0$; shear $(A - I)^2 = 0$ with $A \ne I$;
-- diagonal: $0$ off the diagonal; upper triangular: $a_{21} = 0$;
-- positive definite: symmetric, with $x \cdot Ax > 0$ for every $x \ne 0$;
-- Markov: entries $\ge 0$, each column adding to $1$.
+The families group the tests: where the zeros are, symmetry, what the map keeps, what doing it twice does, signs, rank, and names of their own.
 
 ## The equation decides the eigenvalues
 
-If $Av = \lambda v$ with $v \ne 0$, then $A^2 v = \lambda^2 v$. So for a projection $\lambda^2 = \lambda$, and $\lambda$ is $0$ or $1$; for a nilpotent matrix $\lambda^2 = 0$; for a shear $(\lambda - 1)^2 = 0$.
+If $Av = \lambda v$ with $v \ne 0$, then $A^2 v = \lambda^2 v$. So for a projection $\lambda^2 v = \lambda v$, and $\lambda$ is $0$ or $1$. For an involution, $A^2 = I$, $\lambda^2 = 1$. An orthogonal matrix keeps lengths, $|Av| = |v|$, so $|\lambda| = 1$: its eigenvalues lie on the unit circle.
 
-For a symmetric matrix with $Av = \lambda v$, $Aw = \mu w$ and $\lambda \ne \mu$,
+A test made of inequalities works through discs. Each Gershgorin disc is centred on a diagonal entry, with the size of the other entry of its row as radius, and every eigenvalue lies in one of them. If each diagonal entry outweighs the rest of its row (diagonally dominant), $0$ is in neither disc, so $0$ is not an eigenvalue and $A$ has an inverse.
 
-$$ \lambda\, v \cdot w = Av \cdot w = v \cdot Aw = \mu\, v \cdot w $$
+## The map of the zoo
 
-forces $v \cdot w = 0$: the eigenvectors are perpendicular. The eigenvalues are real: for rows $(a, b)$ and $(b, d)$ they are $(a + d)/2 \pm \sqrt{((a - d)/2)^2 + b^2}$, a root of a sum of squares. If it is positive definite too, $\lambda\,|v|^2 = v \cdot Av > 0$, so $\lambda > 0$.
+One kind contains another when every matrix of the second passes the first's test. The map draws a line from a kind up to each larger kind just above it; following lines upwards gives every containment: a rotation is orthogonal, an orthogonal matrix normal. A containment is proved by algebra. A missing one is shown by a single matrix: the quarter turn
 
-For a skew-symmetric matrix, $x \cdot Ax = A^\top x \cdot x = -Ax \cdot x$ is minus itself, so $0$: $Ax$ is at right angles to $x$. In the plane it is $wJ$, with $J$ the quarter turn, and its eigenvalues are $\pm wi$.
+$$ J = \begin{bmatrix} 0 & -1 \\ 1 & 0 \end{bmatrix} $$
 
-An orthogonal matrix keeps lengths, so a real eigenvalue is $1$ or $-1$ (a reflection has both); a rotation by $\theta$ has $\cos\theta \pm i \sin\theta$, on the unit circle. A triangular matrix's eigenvalues are its diagonal entries, since $\det(A - \lambda I) = (a_{11} - \lambda)(a_{22} - \lambda)$. For a Markov matrix, $(1, 1)A = (1, 1)$: $1$ is an eigenvalue of $A^\top$, so of $A$, and the other, $\tr A - 1$, lies between $-1$ and $1$.
+is orthogonal but not symmetric, so the map has no line from orthogonal to symmetric.
 
-A normal matrix of the plane is symmetric or a turn and a scaling, $aI + bJ$; either way it has eigenvectors at right angles (complex for $aI + bJ$, by the complex dot product).
+Example: the slanted mirror
 
-## Sums, products and inverses
+$$ A = \begin{bmatrix} 1 & 1 \\ 0 & -1 \end{bmatrix}, \qquad A^2 = \begin{bmatrix} 1 & 0 \\ 0 & 1 \end{bmatrix} $$
 
-Orthogonal matrices survive products, $(AB)^\top AB = B^\top A^\top A B = I$, and inverses, $A^{-1} = A^\top$; but $I + I = 2I$ doubles lengths. Symmetric ones survive sums and (where there is one) inverses, but $(AB)^\top = B^\top A^\top = BA$: their product is symmetric exactly when $AB = BA$. An example:
+is an involution. It is not orthogonal: $A$ sends $(0, 1)$ to $(1, -1)$, of length $\sqrt{2}$. So involutions do not lie inside the orthogonal kind, though reflections lie in both.
 
-$$ A = \begin{bmatrix} 1 & 0.5 \\ 0.5 & -1.5 \end{bmatrix}, \quad B = \begin{bmatrix} 1.5 & -0.5 \\ -0.5 & -0.5 \end{bmatrix}, \quad AB = \begin{bmatrix} 1.25 & -0.75 \\ 1.5 & 0.5 \end{bmatrix} $$
+## Sums and products
 
-The top left entry is $1 \cdot 1.5 + 0.5 \cdot (-0.5) = 1.25$. The trace of $AB$ is $1.75$ and its determinant $0.625 + 1.125 = 1.75$, so its eigenvalues are $0.875 \pm \sqrt{0.765625 - 1.75} = 0.875 \pm 0.99i$: off the real line, where a symmetric matrix's never are.
+Orthogonal matrices survive products, since $(AB)^\top AB = B^\top A^\top A B = I$. For symmetric $A$ and $B$, $(AB)^\top = B^\top A^\top = BA$, so $AB$ is symmetric exactly when $AB = BA$.
+
+Example: write $J$ for the quarter turn, with $J^2 = -I$. Then $aI + bJ$ multiplies like the complex number $a + bi$, because $i^2 = -1$ too. With $A = I + 0.5J$ and $B = 1.2I + 0.9J$,
+
+$$ (1 + 0.5i)(1.2 + 0.9i) = 1.2 - 0.45 + (0.9 + 0.6)i = 0.75 + 1.5i $$
+
+so $AB = 0.75I + 1.5J$, a scaled rotation, equal to $BA$.
 
 # In the picture
 
-- Yellow: the letter and circle after the map; dashed, before.
-- Pink and green: where $(1, 0)$ and $(0, 1)$ land; drag the tips.
-- Orange and purple, dashed: the eigenlines with their $\lambda$.
-- The panel: bright buttons are the kinds the matrix is.
-- The complex plane: eigenvalues as dots; bright, where this kind's must lie.
-- "Two at once": $B$ blue, $A$ white, the rest about $A + B$, $AB$ or $A^{-1}$.
+- Yellow: a letter and the unit circle after the map; dashed, before it.
+- Pink and green: where $(1, 0)$ and $(0, 1)$ land, the columns of $A$. Dragging a tip keeps $A$ of its kind.
+- Orange and purple, dashed: the eigenlines, each with its $\lambda$.
+- The complex plane: the eigenvalues as dots, and in bright, where this kind's can lie; cyan circles, the Gershgorin discs.
+- The tabs: the families, with a light for each kind $A$ is.
+- The map: the kinds, the lines between them, and in bright, every kind $A$ is.
 
-> Try first "symmetric: right angles": the eigenlines stay at right angles while a column is dragged round.
+> Try first "one matrix, many kinds": the swap of the axes lights eleven kinds at once.
 
 see: linmap2, eigen, symskew, commute

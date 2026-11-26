@@ -1,6 +1,7 @@
-//! A zoo of special matrices: each kind of matrix is defined by one equation, and that
-//! equation decides both what the map can do to the plane and where its eigenvalues can
-//! lie in the complex plane.
+//! A zoo of special matrices: thirty kinds of 2 × 2 matrix, each defined by an equation
+//! (or a condition), in seven families. The equation decides what the map can do to the
+//! plane and where its eigenvalues can lie in the complex plane; a map of the zoo shows
+//! which kinds lie inside which, and any matrix can be asked which kinds it is.
 
 use super::*;
 use crate::scenes::stats::plot::{self, Plot};
@@ -10,7 +11,7 @@ pub const DEF: SceneDef = SceneDef {
     id: "special",
     title: "A zoo of special matrices",
     group: SPECIAL,
-    blurb: "Symmetric, orthogonal, triangular, projections and more: what each kind does to the plane, and where its eigenvalues can lie.",
+    blurb: "Thirty kinds of $2 \\times 2$ matrix, from symmetric and orthogonal to nilpotent and Markov: what each does to the plane, where its eigenvalues lie, and which kinds contain which.",
     make: |_| Box::new(Special::new()),
 };
 
@@ -59,6 +60,42 @@ fn least_form(m: DMat2) -> f64 {
     let [a, b, c, d] = entries(m);
     let h = 0.5 * (b + c);
     0.5 * (a + d) - (0.25 * (a - d) * (a - d) + h * h).sqrt()
+}
+
+/// Mⁿ, by repeated products (n is small here).
+fn power(m: DMat2, n: u32) -> DMat2 {
+    (0..n).fold(DMat2::IDENTITY, |p, _| p * m)
+}
+
+/// The most steps a root of I may take to come back: the scene looks for Aⁿ = I with n
+/// from 1 to this.
+const ROOT_MAX: u32 = 12;
+
+/// The smallest n ≤ `ROOT_MAX` with Mⁿ as near I as rounding allows, and how far Mⁿ is
+/// from I at the n where it comes nearest (that n, and its distance, if none is near
+/// enough).
+fn order(m: DMat2) -> (u32, f64, bool) {
+    let tol = EXACT * size(m).max(1.0).powi(2);
+    let mut best = (1, f64::INFINITY);
+    let mut p = DMat2::IDENTITY;
+    for n in 1..=ROOT_MAX {
+        p *= m;
+        let off = size(p - DMat2::IDENTITY);
+        if off <= tol {
+            return (n, off, true);
+        }
+        if off < best.1 {
+            best = (n, off);
+        }
+    }
+    (best.0, if best.1.is_finite() { best.1 } else { f64::MAX }, false)
+}
+
+/// The Gershgorin discs of a matrix, by rows: about each diagonal entry, with the size
+/// of the other entry of its row as the radius. Every eigenvalue lies in one of them.
+fn discs(m: DMat2) -> [(f64, f64); 2] {
+    let [a, b, c, d] = entries(m);
+    [(a, b.abs()), (d, c.abs())]
 }
 
 /// The eigenvalues of a matrix and the lines they keep.
@@ -144,45 +181,159 @@ fn inverse(a: DMat2) -> Option<DMat2> {
     (s > 0.0 && det.abs() > EXACT * s * s).then(|| a.inverse()).filter(|m| m.is_finite())
 }
 
+/// An angle in degrees for the screen, to a tenth, with no "−0.0°".
+fn degrees(r: f64) -> String {
+    let v = r.to_degrees();
+    format!("{:.1}°", if v.abs() < 0.05 { 0.0 } else { v })
+}
+
 // ----- the kinds ---------------------------------------------------------------------
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Kind {
+    // by where the zeros are
+    Scalar,
     Diagonal,
-    Triangular,
+    Upper,
+    Lower,
+    // by symmetry
     Symmetric,
-    PosDef,
     Skew,
-    Orthogonal,
     Normal,
+    ScaledRotation,
+    // by what the map keeps
+    Orthogonal,
+    Rotation,
+    Reflection,
+    DetOne,
+    // by what its powers do
     Projection,
+    OrthProjection,
+    Involution,
     Nilpotent,
     Shear,
+    Root,
+    // by sign
+    PosDef,
+    PosSemidef,
+    Indefinite,
+    Positive,
     Markov,
+    Doubly,
+    Dominant,
+    // by rank
+    Singular,
+    RankOne,
+    // with names of their own
+    Permutation,
+    Companion,
+    JordanBlock,
+    /// No kind: any matrix at all, free to drag, with every kind it is of lit.
+    Any,
 }
 
-/// The kinds, in the order they are offered.
-const KINDS: [Kind; 11] = [
+/// The kinds, family by family, in the order they are offered.
+const KINDS: [Kind; 30] = [
+    Kind::Scalar,
     Kind::Diagonal,
-    Kind::Triangular,
+    Kind::Upper,
+    Kind::Lower,
     Kind::Symmetric,
-    Kind::PosDef,
     Kind::Skew,
-    Kind::Orthogonal,
     Kind::Normal,
+    Kind::ScaledRotation,
+    Kind::Orthogonal,
+    Kind::Rotation,
+    Kind::Reflection,
+    Kind::DetOne,
     Kind::Projection,
+    Kind::OrthProjection,
+    Kind::Involution,
     Kind::Nilpotent,
     Kind::Shear,
+    Kind::Root,
+    Kind::PosDef,
+    Kind::PosSemidef,
+    Kind::Indefinite,
+    Kind::Positive,
     Kind::Markov,
+    Kind::Doubly,
+    Kind::Dominant,
+    Kind::Singular,
+    Kind::RankOne,
+    Kind::Permutation,
+    Kind::Companion,
+    Kind::JordanBlock,
 ];
+
+/// The families the kinds are found by.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Family {
+    Zeros,
+    Symmetry,
+    Keeps,
+    Powers,
+    Signs,
+    Rank,
+    Named,
+}
+
+const FAMILIES: [Family; 7] = [Family::Zeros, Family::Symmetry, Family::Keeps, Family::Powers, Family::Signs, Family::Rank, Family::Named];
+
+impl Family {
+    fn kinds(self) -> &'static [Kind] {
+        let range = match self {
+            Family::Zeros => 0..4,
+            Family::Symmetry => 4..8,
+            Family::Keeps => 8..12,
+            Family::Powers => 12..18,
+            Family::Signs => 18..25,
+            Family::Rank => 25..27,
+            Family::Named => 27..30,
+        };
+        &KINDS[range]
+    }
+
+    /// Its name on its tab.
+    fn tab(self) -> &'static str {
+        match self {
+            Family::Zeros => "zeros",
+            Family::Symmetry => "symmetry",
+            Family::Keeps => "what it keeps",
+            Family::Powers => "powers",
+            Family::Signs => "signs",
+            Family::Rank => "rank",
+            Family::Named => "named",
+        }
+    }
+
+    /// What its kinds have in common.
+    fn heading(self) -> &'static str {
+        match self {
+            Family::Zeros => "by where the zeros are",
+            Family::Symmetry => "by symmetry",
+            Family::Keeps => "by what the map keeps",
+            Family::Powers => "by what doing it again does",
+            Family::Signs => "by the signs of the entries, or of the eigenvalues",
+            Family::Rank => "by rank: how much of the plane is left",
+            Family::Named => "with names of their own",
+        }
+    }
+}
 
 /// Where a kind's eigenvalues can lie, in the complex plane.
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Region {
     /// The real line.
     Real,
+    /// One real number, twice.
+    Twice,
     /// The real line right of 0 (0 itself left out).
     Positive,
+    /// The real line from 0 rightwards, 0 included.
+    NonNegative,
+    /// The real line, one each side of 0.
+    Sides,
     /// The imaginary line.
     Imaginary,
     /// The unit circle.
@@ -191,6 +342,16 @@ enum Region {
     Points(&'static [f64]),
     /// 1, and the real line from −1 to 1 for the other.
     Shares,
+    /// λ and 1/λ on the real line, or a pair on the unit circle.
+    DetOne,
+    /// The roots of 1: points of the unit circle a whole share of a turn round.
+    Roots,
+    /// The Gershgorin discs of the matrix itself.
+    Discs,
+    /// 0, and the other on the real line.
+    ZeroAndReal,
+    /// The real line, the larger positive and larger in size.
+    Perron,
     /// Anywhere at all.
     Anywhere,
 }
@@ -200,205 +361,370 @@ impl Region {
     fn name(self) -> &'static str {
         match self {
             Region::Real => "the real line",
+            Region::Twice => "one real number, twice",
             Region::Positive => r"the real line right of $0$",
+            Region::NonNegative => r"the real line from $0$ on",
+            Region::Sides => r"real, one each side of $0$",
             Region::Imaginary => "the imaginary line",
             Region::Circle => "the unit circle",
             Region::Points([0.0, 1.0]) => r"$0$ and $1$ only",
             Region::Points([0.0]) => r"$0$ only",
+            Region::Points([1.0, -1.0]) => r"$1$ and $-1$ only",
             Region::Points(_) => r"$1$ only",
             Region::Shares => r"$1$, and the other in $[-1, 1]$",
+            Region::DetOne => r"$\lambda$ and $1/\lambda$, or on the circle",
+            Region::Roots => r"roots of $1$ on the unit circle",
+            Region::Discs => "the Gershgorin discs",
+            Region::ZeroAndReal => r"$0$, and the trace",
+            Region::Perron => "real; the larger positive",
             Region::Anywhere => "anywhere",
         }
     }
 
-    /// Whether the eigenvalue re + im i lies in it, to within `tol`.
-    fn holds(self, (re, im): (f64, f64), tol: f64) -> bool {
+    /// Whether the eigenvalue re + im i of `m` lies in it, to within `tol`.
+    fn holds(self, (re, im): (f64, f64), tol: f64, m: DMat2) -> bool {
+        let real = im.abs() <= tol;
         match self {
-            Region::Real => im.abs() <= tol,
-            Region::Positive => im.abs() <= tol && re > 0.0,
+            Region::Real | Region::Twice | Region::ZeroAndReal | Region::Perron => real,
+            Region::Positive => real && re > 0.0,
+            Region::NonNegative => real && re >= -tol,
+            Region::Sides => real && re.abs() > tol,
             Region::Imaginary => re.abs() <= tol,
             Region::Circle => (re.hypot(im) - 1.0).abs() <= tol,
-            Region::Points(points) => im.abs() <= tol && points.iter().any(|p| (re - p).abs() <= tol),
-            Region::Shares => im.abs() <= tol && re >= -1.0 - tol && re <= 1.0 + tol,
+            Region::Points(points) => real && points.iter().any(|p| (re - p).abs() <= tol),
+            Region::Shares => real && re >= -1.0 - tol && re <= 1.0 + tol,
+            Region::DetOne => (real && re.abs() > tol) || (re.hypot(im) - 1.0).abs() <= tol,
+            Region::Roots => {
+                // on the circle, and a whole number of n-ths of a turn round for some n
+                let turns = im.atan2(re) / std::f64::consts::TAU;
+                (re.hypot(im) - 1.0).abs() <= tol && (1..=ROOT_MAX).any(|n| (turns * n as f64 - (turns * n as f64).round()).abs() <= tol * n as f64 * 10.0)
+            }
+            Region::Discs => discs(m).iter().any(|(c, r)| (re - c).hypot(im) <= r + tol),
             Region::Anywhere => true,
         }
     }
 }
 
 impl Kind {
+    fn family(self) -> Family {
+        FAMILIES.into_iter().find(|f| f.kinds().contains(&self)).unwrap_or(Family::Zeros)
+    }
+
     fn name(self) -> &'static str {
         match self {
+            Kind::Scalar => r"multiple of $I$",
             Kind::Diagonal => "diagonal",
-            Kind::Triangular => "upper triangular",
+            Kind::Upper => "upper triangular",
+            Kind::Lower => "lower triangular",
             Kind::Symmetric => "symmetric",
-            Kind::PosDef => "positive definite",
             Kind::Skew => "skew-symmetric",
-            Kind::Orthogonal => "orthogonal",
             Kind::Normal => "normal",
+            Kind::ScaledRotation => "scaled rotation",
+            Kind::Orthogonal => "orthogonal",
+            Kind::Rotation => "rotation",
+            Kind::Reflection => "reflection",
+            Kind::DetOne => r"determinant $1$",
             Kind::Projection => "projection",
+            Kind::OrthProjection => "orthogonal projection",
+            Kind::Involution => "involution",
             Kind::Nilpotent => "nilpotent",
             Kind::Shear => "shear",
+            Kind::Root => r"root of $I$",
+            Kind::PosDef => "positive definite",
+            Kind::PosSemidef => "positive semidefinite",
+            Kind::Indefinite => "indefinite",
+            Kind::Positive => "positive",
             Kind::Markov => "Markov",
+            Kind::Doubly => "doubly stochastic",
+            Kind::Dominant => "diagonally dominant",
+            Kind::Singular => "singular",
+            Kind::RankOne => "rank one",
+            Kind::Permutation => "permutation",
+            Kind::Companion => "companion",
+            Kind::JordanBlock => "Jordan block",
+            Kind::Any => "any matrix",
         }
     }
 
     /// Its name on its button.
     fn chip(self) -> &'static str {
         match self {
-            Kind::Triangular => "triangular",
+            Kind::Positive => "positive entries",
             k => k.name(),
+        }
+    }
+
+    /// Its name on the map of the zoo, in one or two lines.
+    fn map_name(self) -> [&'static str; 2] {
+        match self {
+            Kind::Scalar => ["multiple", r"of $I$"],
+            Kind::Upper => ["upper", "triangular"],
+            Kind::Lower => ["lower", "triangular"],
+            Kind::Skew => ["skew-", "symmetric"],
+            Kind::ScaledRotation => ["scaled", "rotation"],
+            Kind::DetOne => [r"$\det A = 1$", ""],
+            Kind::OrthProjection => ["orthogonal", "projection"],
+            Kind::PosDef => ["positive", "definite"],
+            Kind::PosSemidef => ["positive", "semidefinite"],
+            Kind::Positive => ["positive", "entries"],
+            Kind::Doubly => ["doubly", "stochastic"],
+            Kind::Dominant => ["diagonally", "dominant"],
+            Kind::JordanBlock => ["Jordan", "block"],
+            k => [k.name(), ""],
         }
     }
 
     /// "a symmetric matrix", "an orthogonal matrix", "a projection".
     fn a_name(self) -> String {
-        let article = if matches!(self, Kind::Orthogonal | Kind::Skew | Kind::Triangular) { "an" } else { "a" };
         match self {
-            Kind::Projection | Kind::Shear => format!("a {}", self.name()),
-            Kind::Markov => "a Markov matrix".into(),
-            _ => format!("{article} {} matrix", self.name()),
+            Kind::Scalar => r"a multiple of $I$".into(),
+            Kind::Upper | Kind::Orthogonal | Kind::Indefinite => format!("an {} matrix", self.name()),
+            Kind::OrthProjection | Kind::Involution => format!("an {}", self.name()),
+            Kind::ScaledRotation | Kind::Rotation | Kind::Reflection | Kind::Projection | Kind::Shear | Kind::Root | Kind::JordanBlock => format!("a {}", self.name()),
+            Kind::DetOne => r"a matrix of determinant $1$".into(),
+            Kind::RankOne => "a matrix of rank one".into(),
+            Kind::Any => "any matrix".into(),
+            _ => format!("a {} matrix", self.name()),
+        }
+    }
+
+    /// "symmetric matrices", "projections".
+    fn plural(self) -> String {
+        match self {
+            Kind::Scalar => r"multiples of $I$".into(),
+            Kind::ScaledRotation | Kind::Rotation | Kind::Reflection | Kind::Projection | Kind::OrthProjection | Kind::Involution | Kind::Shear | Kind::JordanBlock => format!("{}s", self.name()),
+            Kind::Root => r"roots of $I$".into(),
+            Kind::DetOne => r"matrices of determinant $1$".into(),
+            Kind::RankOne => "matrices of rank one".into(),
+            Kind::Any => "matrices".into(),
+            _ => format!("{} matrices", self.name()),
         }
     }
 
     fn region(self) -> Region {
         match self {
-            Kind::Diagonal | Kind::Triangular | Kind::Symmetric => Region::Real,
+            Kind::Diagonal | Kind::Upper | Kind::Lower | Kind::Symmetric => Region::Real,
+            Kind::Scalar | Kind::JordanBlock => Region::Twice,
             Kind::PosDef => Region::Positive,
+            Kind::PosSemidef => Region::NonNegative,
+            Kind::Indefinite => Region::Sides,
             Kind::Skew => Region::Imaginary,
-            Kind::Orthogonal => Region::Circle,
-            Kind::Normal => Region::Anywhere,
-            Kind::Projection => Region::Points(&[0.0, 1.0]),
+            Kind::Orthogonal | Kind::Rotation => Region::Circle,
+            Kind::Reflection | Kind::Involution | Kind::Permutation => Region::Points(&[1.0, -1.0]),
+            Kind::DetOne => Region::DetOne,
+            Kind::Root => Region::Roots,
+            Kind::Normal | Kind::ScaledRotation | Kind::Companion | Kind::Any => Region::Anywhere,
+            Kind::Projection | Kind::OrthProjection => Region::Points(&[0.0, 1.0]),
             Kind::Nilpotent => Region::Points(&[0.0]),
             Kind::Shear => Region::Points(&[1.0]),
-            Kind::Markov => Region::Shares,
+            Kind::Markov | Kind::Doubly => Region::Shares,
+            Kind::Dominant => Region::Discs,
+            Kind::Singular | Kind::RankOne => Region::ZeroAndReal,
+            Kind::Positive => Region::Perron,
+        }
+    }
+
+    /// How many numbers can be chosen freely in a matrix of the kind: the dimension of
+    /// the set, where it is a smooth family.
+    fn free(self) -> &'static str {
+        match self {
+            Kind::Scalar | Kind::Skew | Kind::Orthogonal | Kind::Rotation | Kind::Reflection | Kind::Doubly | Kind::JordanBlock => "1",
+            Kind::Diagonal | Kind::ScaledRotation | Kind::Nilpotent | Kind::Shear | Kind::Markov | Kind::Companion => "2",
+            Kind::Upper | Kind::Lower | Kind::Symmetric | Kind::DetOne | Kind::PosDef | Kind::PosSemidef | Kind::Indefinite | Kind::Singular | Kind::RankOne => "3",
+            Kind::Positive | Kind::Dominant | Kind::Any => "4",
+            Kind::Normal => r"3 (the scaled rotations among them: 2)",
+            Kind::Projection => r"2 (and $0$ and $I$ besides)",
+            Kind::OrthProjection => r"1 (and $0$ and $I$ besides)",
+            Kind::Involution => r"2 (and $I$ and $-I$ besides)",
+            Kind::Root => r"2, for each $n$ and share of a turn",
+            Kind::Permutation => "0: two matrices only",
+        }
+    }
+
+    /// The scene where the kind turns up, and what that scene is, in a few words.
+    fn home(self) -> (&'static str, &'static str) {
+        match self {
+            Kind::Scalar => ("commute", "matrices that commute"),
+            Kind::Diagonal => ("basis", "change of basis, where the eigenvector basis makes a matrix diagonal"),
+            Kind::Upper => ("schur", "Schur form, upper triangular in a perpendicular basis"),
+            Kind::Lower => ("factor", r"$A = LU$, lower triangular times upper"),
+            Kind::Symmetric => ("spectral", "the spectral theorem"),
+            Kind::Skew => ("symskew", "every matrix as symmetric plus skew-symmetric"),
+            Kind::Normal => ("symskew", r"symmetric and skew parts, which commute exactly when $A$ is normal"),
+            Kind::ScaledRotation => ("expm", "spirals, from the matrix exponential"),
+            Kind::Orthogonal => ("gram", "Gram–Schmidt, which makes orthogonal matrices"),
+            Kind::Rotation => ("rotations", "rotations in 3D"),
+            Kind::Reflection => ("project", "projections and reflections"),
+            Kind::DetOne => ("det", "determinants, how a map scales areas"),
+            Kind::Projection => ("project", "projections and reflections"),
+            Kind::OrthProjection => ("lsq", "projection and least squares"),
+            Kind::Involution => ("project", "mirrors, straight and slanted"),
+            Kind::Nilpotent => ("jordan", "Jordan blocks, when eigenvectors run out"),
+            Kind::Shear => ("linmap2", "linear maps, a shear among them"),
+            Kind::Root => ("powers", "powers of a matrix"),
+            Kind::PosDef => ("cholesky", "Cholesky, a triangular square root"),
+            Kind::PosSemidef => ("pca", "covariance matrices and principal components"),
+            Kind::Indefinite => ("quadform", "quadratic forms, bowls and saddles"),
+            Kind::Positive => ("powers", "powers of a matrix, and the eigenvector they find"),
+            Kind::Markov => ("powers", "a Markov chain settling, step by step"),
+            Kind::Doubly => ("powers", "a Markov chain settling, step by step"),
+            Kind::Dominant => ("eigen", "finding eigenvalues"),
+            Kind::Singular => ("subspaces", r"the four subspaces, and what a matrix sends to $0$"),
+            Kind::RankOne => ("lowrank", "a matrix as a sum of rank-one pieces"),
+            Kind::Permutation => ("factor", r"row swaps, $PA = LU$"),
+            Kind::Companion => ("patterns", "larger companion matrices, and other patterns"),
+            Kind::JordanBlock => ("jordan", "Jordan blocks, when eigenvectors run out"),
+            Kind::Any => ("patterns", "larger matrices, known by their pattern"),
         }
     }
 
     /// The defining equation, for the matrix written `n` (`A`, `AB`, `A + B`, ...).
     fn equation(self, n: &str) -> String {
         let p = paren(n);
-        let (e12, e21) = (entry(n, 12), entry(n, 21));
+        let e = |ij: u32| entry(n, ij);
         match self {
-            Kind::Diagonal => format!("${e12} = {e21} = 0$"),
-            Kind::Triangular => format!("${e21} = 0$"),
+            Kind::Scalar => format!("${} = {} = 0$, ${} = {}$", e(12), e(21), e(11), e(22)),
+            Kind::Diagonal => format!("${} = {} = 0$", e(12), e(21)),
+            Kind::Upper => format!("${} = 0$", e(21)),
+            Kind::Lower => format!("${} = 0$", e(12)),
             Kind::Symmetric => format!(r"${p}^\top = {n}$"),
-            Kind::PosDef => format!(r"${p}^\top = {n}$, $x \cdot {p}x > 0$"),
             Kind::Skew => format!(r"${p}^\top = -{p}$"),
-            Kind::Orthogonal => format!(r"${p}^\top {p} = I$"),
             Kind::Normal => format!(r"${p}{p}^\top = {p}^\top {p}$"),
+            Kind::ScaledRotation => format!("${} = {}$, ${} = -{}$", e(11), e(22), e(21), e(12)),
+            Kind::Orthogonal => format!(r"${p}^\top {p} = I$"),
+            Kind::Rotation => format!(r"${p}^\top {p} = I$, $\det {p} = 1$"),
+            Kind::Reflection => format!(r"${p}^\top {p} = I$, $\det {p} = -1$"),
+            Kind::DetOne => format!(r"$\det {p} = 1$"),
             Kind::Projection => format!("${p}^2 = {n}$"),
+            Kind::OrthProjection => format!(r"${p}^2 = {n}$, ${p}^\top = {n}$"),
+            Kind::Involution => format!("${p}^2 = I$"),
             Kind::Nilpotent => format!("${p}^2 = 0$"),
             Kind::Shear => format!(r"$({n} - I)^2 = 0$, ${n} \ne I$"),
+            Kind::Root => format!(r"${p}^n = I$ for a whole $n \le {ROOT_MAX}$"),
+            Kind::PosDef => format!(r"${p}^\top = {n}$, $x \cdot {p}x > 0$"),
+            Kind::PosSemidef => format!(r"${p}^\top = {n}$, $x \cdot {p}x \ge 0$"),
+            Kind::Indefinite => format!(r"${p}^\top = {n}$, $\det {p} < 0$"),
+            Kind::Positive => r"every entry $> 0$".into(),
             Kind::Markov => r"entries $\ge 0$, columns add to $1$".into(),
+            Kind::Doubly => r"entries $\ge 0$, rows and columns add to $1$".into(),
+            Kind::Dominant => format!("$|{}| > |{}|$, $|{}| > |{}|$", e(11), e(12), e(22), e(21)),
+            Kind::Singular => format!(r"$\det {p} = 0$"),
+            Kind::RankOne => format!(r"$\det {p} = 0$, ${n} \ne 0$"),
+            Kind::Permutation => r"$I$, or $S$, the swap".into(),
+            Kind::Companion => format!("${} = 0$, ${} = 1$", e(11), e(21)),
+            Kind::JordanBlock => format!("${} = 0$, ${} = 1$, ${} = {}$", e(21), e(12), e(11), e(22)),
+            Kind::Any => "no equation".into(),
         }
     }
 
     /// What its eigenvalues and eigenlines are, in a few words.
     fn eigen_words(self) -> &'static str {
         match self {
+            Kind::Scalar => r"every direction is an eigenvector, and it commutes with every matrix",
             Kind::Diagonal => "its eigenvalues are its diagonal entries, and the axes are eigenlines",
-            Kind::Triangular => r"its eigenvalues are its diagonal entries, $a_{11}$ and $a_{22}$",
+            Kind::Upper => r"its eigenvalues are its diagonal entries, $a_{11}$ and $a_{22}$; the $x$ axis is an eigenline",
+            Kind::Lower => r"its eigenvalues are its diagonal entries, $a_{11}$ and $a_{22}$; the $y$ axis is an eigenline",
             Kind::Symmetric => "its eigenvalues are real, and its eigenlines at right angles",
-            Kind::PosDef => "its eigenvalues are positive, and its eigenlines at right angles",
             Kind::Skew => r"$x \cdot Ax = 0$ for every $x$; its eigenvalues lie on the imaginary line",
+            Kind::Normal => "in the plane: symmetric, or a scaled rotation; eigenvectors at right angles (complex ones, for a turn)",
+            Kind::ScaledRotation => r"$aI + bJ$ is the complex number $a + bi$ as a matrix; its eigenvalues are $a \pm bi$",
             Kind::Orthogonal => "it keeps every length and angle; its eigenvalues lie on the unit circle",
-            Kind::Normal => "in the plane: symmetric, or a turn and a scaling; eigenvectors at right angles (complex ones, for a turn)",
+            Kind::Rotation => r"its eigenvalues $\cos\theta \pm i \sin\theta$ lie on the unit circle",
+            Kind::Reflection => r"its eigenvalues are $1$, along the mirror, and $-1$, across it",
+            Kind::DetOne => r"its eigenvalues multiply to $1$: $\lambda$ and $1/\lambda$ on the real line, or a pair on the unit circle",
             Kind::Projection => r"applied twice it does nothing more; its eigenvalues are $0$ and $1$",
+            Kind::OrthProjection => r"its eigenvalues are $0$ and $1$, and its eigenlines are at right angles",
+            Kind::Involution => r"applied twice it undoes itself; its eigenvalues are $1$ and $-1$ ($I$ and $-I$ have one twice)",
             Kind::Nilpotent => r"its only eigenvalue is $0$; unless $A = 0$, it has a single eigenline",
             Kind::Shear => r"its only eigenvalue is $1$, with a single eigenline; it keeps areas",
+            Kind::Root => r"its eigenvalues are $n$-th roots of $1$, on the unit circle",
+            Kind::PosDef => "its eigenvalues are positive, and its eigenlines at right angles",
+            Kind::PosSemidef => "its eigenvalues are real and none is negative; its eigenlines are at right angles",
+            Kind::Indefinite => "one eigenvalue is positive and one negative, on eigenlines at right angles: a saddle",
+            Kind::Positive => "both eigenvalues are real; the larger is positive and larger in size than the other, and its eigenline runs through the positive quarter",
             Kind::Markov => r"one eigenvalue is exactly $1$; the other lies between $-1$ and $1$",
-        }
-    }
-
-    /// Whether a sum, a product and an inverse of the kind are of the kind, in a few
-    /// words each (what `closure` says in full).
-    fn closure_short(self) -> [&'static str; 3] {
-        match self {
-            Kind::Diagonal | Kind::Triangular => ["always", "always", "where it exists"],
-            Kind::Symmetric => ["always", r"exactly when $AB = BA$", "where it exists"],
-            Kind::PosDef => ["always", r"exactly when $AB = BA$", "always"],
-            Kind::Skew => ["always", r"only if it is $0$", "where it exists"],
-            Kind::Orthogonal => ["not always", "always", "always"],
-            Kind::Normal => ["not always", "not always", "where it exists"],
-            Kind::Projection => [r"exactly when $AB = BA = 0$", r"if $AB = BA$; not always", r"only $I$ has one"],
-            Kind::Nilpotent => ["not always", "not always", "never"],
-            Kind::Shear => ["never", "along one line: a shear or $I$", "always"],
-            Kind::Markov => ["never (an average is)", "always", r"only for $I$ and the swap"],
-        }
-    }
-
-    /// What stays true of the kind under a sum, a product or an inverse.
-    fn closure(self, op: Op) -> &'static str {
-        use Kind::*;
-        match (op, self) {
-            (Op::Alone, _) => "",
-            (Op::Sum, Diagonal) => "A sum of diagonal matrices is diagonal.",
-            (Op::Sum, Triangular) => "A sum of upper triangular matrices is upper triangular.",
-            (Op::Sum, Symmetric) => r"A sum of symmetric matrices is symmetric: $(A + B)^\top = A^\top + B^\top$.",
-            (Op::Sum, PosDef) => r"A sum of positive definite matrices is positive definite: $x \cdot (A + B)x = x \cdot Ax + x \cdot Bx$.",
-            (Op::Sum, Skew) => "A sum of skew-symmetric matrices is skew-symmetric.",
-            (Op::Sum, Orthogonal) => r"A sum of orthogonal matrices need not be orthogonal: $I + I = 2I$ doubles every length.",
-            (Op::Sum, Normal) => "A sum of normal matrices need not be normal.",
-            (Op::Sum, Projection) => r"$A + B$ is a projection only if $AB = BA = 0$.",
-            (Op::Sum, Nilpotent) => "A sum of nilpotent matrices need not be nilpotent.",
-            (Op::Sum, Shear) => r"A sum of two shears is never a shear: its diagonal adds up to $4$, a shear's to $2$.",
-            (Op::Sum, Markov) => r"A sum of Markov matrices is not one: its columns add to $2$. Their average is one.",
-            (Op::Product, Diagonal) => "A product of diagonal matrices is diagonal, and the same in either order.",
-            (Op::Product, Triangular) => "A product of upper triangular matrices is upper triangular.",
-            (Op::Product, Symmetric) => r"A product of symmetric matrices is symmetric exactly when they commute: $(AB)^\top = BA$.",
-            (Op::Product, PosDef) => "A product of positive definite matrices is positive definite exactly when they commute (its eigenvalues are positive either way).",
-            (Op::Product, Skew) => r"In the plane a product of two skew-symmetric matrices is $(aJ)(bJ) = -abI$: symmetric, and skew only if it is $0$.",
-            (Op::Product, Orthogonal) => r"A product of orthogonal matrices is always orthogonal: $(AB)^\top AB = B^\top A^\top A B = I$.",
-            (Op::Product, Normal) => "A product of normal matrices need not be normal.",
-            (Op::Product, Projection) => "A product of projections is a projection if they commute, and need not be otherwise.",
-            (Op::Product, Nilpotent) => "A product of nilpotent matrices need not be nilpotent.",
-            (Op::Product, Shear) => r"A product of two shears along the same line is a shear (or $I$); along different lines it is not.",
-            (Op::Product, Markov) => "A product of Markov matrices is a Markov matrix.",
-            (Op::Inverse, Diagonal) => r"The inverse of a diagonal matrix, where there is one, is diagonal: $1/a_{11}$ and $1/a_{22}$.",
-            (Op::Inverse, Triangular) => "The inverse of an upper triangular matrix, where there is one, is upper triangular.",
-            (Op::Inverse, Symmetric) => "The inverse of a symmetric matrix, where there is one, is symmetric.",
-            (Op::Inverse, PosDef) => r"The inverse of a positive definite matrix is positive definite: its eigenvalues are $1/\lambda$.",
-            (Op::Inverse, Skew) => r"In the plane the inverse of $wJ$ ($w \ne 0$) is $-J/w$: skew-symmetric too.",
-            (Op::Inverse, Orthogonal) => r"The inverse of an orthogonal matrix is its transpose, $A^{-1} = A^\top$, and orthogonal too.",
-            (Op::Inverse, Normal) => "The inverse of a normal matrix, where there is one, is normal.",
-            (Op::Inverse, Projection) => r"A projection has no inverse unless it is $I$: it sends a whole line to $0$.",
-            (Op::Inverse, Nilpotent) => r"A nilpotent matrix never has an inverse: it sends a whole line to $0$.",
-            (Op::Inverse, Shear) => r"The inverse of a shear slides back along the same line: $(I + N)^{-1} = I - N$.",
-            (Op::Inverse, Markov) => r"The inverse, where there is one, has columns adding to $1$ but a negative entry, unless $A$ is $I$ or the swap.",
+            Kind::Doubly => r"its eigenvalues are $1$ and $2a_{11} - 1$",
+            Kind::Dominant => r"each eigenvalue lies in a Gershgorin disc, and $0$ in neither, so $\det A \ne 0$",
+            Kind::Singular => r"one eigenvalue is $0$; the other is the trace",
+            Kind::RankOne => r"$A = uv^\top$; its eigenvalues are $0$ and $v \cdot u$, which is the trace",
+            Kind::Permutation => r"$I$ has the eigenvalue $1$ twice; the swap has $1$ and $-1$",
+            Kind::Companion => r"its eigenvalues are the roots of $\lambda^2 - a_{22}\lambda - a_{12}$, read off its last column; every matrix but a multiple of $I$ is one in a suitable basis",
+            Kind::JordanBlock => r"its only eigenvalue is its diagonal entry, with a single eigenline, the $x$ axis",
+            Kind::Any => "every kind it is of is lit",
         }
     }
 
     /// The matrix a kind starts with.
     fn default_a(self) -> DMat2 {
         rows(match self {
+            Kind::Scalar => [1.3, 0.0, 0.0, 1.3],
             Kind::Diagonal => [1.5, 0.0, 0.0, 0.6],
-            Kind::Triangular => [1.2, 0.8, 0.0, 0.6],
+            Kind::Upper => [1.2, 0.8, 0.0, 0.6],
+            Kind::Lower => [1.2, 0.0, 0.8, 0.6],
             Kind::Symmetric => [1.7, 0.6, 0.6, 0.8],
-            Kind::PosDef => [1.3, 0.4, 0.4, 0.7],
             Kind::Skew => [0.0, -1.2, 1.2, 0.0],
-            Kind::Orthogonal => [0.6, -0.8, 0.8, 0.6],
             Kind::Normal => [0.9, -0.6, 0.6, 0.9],
-            Kind::Projection => [0.8, 0.4, 0.4, 0.2],
+            Kind::ScaledRotation => [1.2, -0.5, 0.5, 1.2],
+            Kind::Orthogonal => [0.6, -0.8, 0.8, 0.6],
+            Kind::Rotation => [0.6, -0.8, 0.8, 0.6],
+            Kind::Reflection => [0.6, 0.8, 0.8, -0.6],
+            Kind::DetOne => [1.5, 0.5, 0.4, 0.8],
+            Kind::Projection => [0.6, 0.6, 0.4, 0.4],
+            Kind::OrthProjection => [0.8, 0.4, 0.4, 0.2],
+            Kind::Involution => [1.0, 1.0, 0.0, -1.0],
             Kind::Nilpotent => [0.8, -1.6, 0.4, -0.8],
             Kind::Shear => [1.0, 1.0, 0.0, 1.0],
+            Kind::Root => [1.0, -1.0, 1.0, 0.0],
+            Kind::PosDef => [1.3, 0.4, 0.4, 0.7],
+            Kind::PosSemidef => [1.6, 0.8, 0.8, 0.4],
+            Kind::Indefinite => [1.0, 1.2, 1.2, -0.5],
+            Kind::Positive => [0.5, 1.5, 1.0, 1.0],
             Kind::Markov => [0.8, 0.3, 0.2, 0.7],
+            Kind::Doubly => [0.8, 0.2, 0.2, 0.8],
+            Kind::Dominant => [1.5, 0.8, -0.5, -1.2],
+            Kind::Singular => [1.2, 0.6, 0.8, 0.4],
+            Kind::RankOne => [1.2, -0.6, 0.6, -0.3],
+            Kind::Permutation => [0.0, 1.0, 1.0, 0.0],
+            Kind::Companion => [0.0, -0.5, 1.0, 1.5],
+            Kind::JordanBlock => [1.2, 1.0, 0.0, 1.2],
+            Kind::Any => [1.2, 0.5, -0.4, 0.8],
         })
     }
 
     /// The second matrix of the kind it starts with, for sums and products.
     fn default_b(self) -> DMat2 {
         rows(match self {
+            Kind::Scalar => [-0.6, 0.0, 0.0, -0.6],
             Kind::Diagonal => [-0.8, 0.0, 0.0, 1.4],
-            Kind::Triangular => [0.7, -0.6, 0.0, 1.3],
+            Kind::Upper => [0.7, -0.6, 0.0, 1.3],
+            Kind::Lower => [0.7, 0.0, -0.6, 1.3],
             Kind::Symmetric => [1.5, -0.5, -0.5, -0.5],
-            Kind::PosDef => [0.9, -0.5, -0.5, 1.1],
             Kind::Skew => [0.0, 0.8, -0.8, 0.0],
-            Kind::Orthogonal => [0.6, 0.8, 0.8, -0.6],
             Kind::Normal => [1.2, 0.5, 0.5, -0.4],
+            Kind::ScaledRotation => [0.5, -1.0, 1.0, 0.5],
+            Kind::Orthogonal => [0.6, 0.8, 0.8, -0.6],
+            Kind::Rotation => [0.0, -1.0, 1.0, 0.0],
+            Kind::Reflection => [-0.6, 0.8, 0.8, 0.6],
+            Kind::DetOne => [0.8, -0.6, 1.0, 0.5],
             Kind::Projection => [1.0, -1.0, 0.0, 0.0],
+            Kind::OrthProjection => [0.5, -0.5, -0.5, 0.5],
+            Kind::Involution => [0.0, 1.0, 1.0, 0.0],
             Kind::Nilpotent => [0.0, 1.0, 0.0, 0.0],
             Kind::Shear => [1.0, 0.0, 0.8, 1.0],
+            Kind::Root => [0.0, -1.0, 1.0, -1.0],
+            Kind::PosDef => [0.9, -0.5, -0.5, 1.1],
+            Kind::PosSemidef => [1.0, 0.3, 0.3, 0.6],
+            Kind::Indefinite => [0.5, -1.0, -1.0, 0.2],
+            Kind::Positive => [1.0, 0.4, 0.6, 0.8],
             Kind::Markov => [0.5, 0.9, 0.5, 0.1],
+            Kind::Doubly => [0.3, 0.7, 0.7, 0.3],
+            Kind::Dominant => [1.0, -0.6, 0.3, 0.9],
+            Kind::Singular => [0.5, -1.0, -0.5, 1.0],
+            Kind::RankOne => [0.4, 0.8, 0.5, 1.0],
+            Kind::Permutation => [1.0, 0.0, 0.0, 1.0],
+            Kind::Companion => [0.0, -1.0, 1.0, 0.0],
+            Kind::JordanBlock => [0.5, 1.0, 0.0, 0.5],
+            Kind::Any => [0.6, -0.8, 0.9, 0.4],
         })
     }
 }
@@ -429,51 +755,77 @@ fn test(kind: Kind, m: DMat2) -> (f64, bool) {
     let [a, b, c, d] = entries(m);
     let id = DMat2::IDENTITY;
     let t = m.transpose();
+    let det = m.determinant();
+    let at_most = |off: f64, tol: f64| (off, off <= tol);
     match kind {
-        Kind::Diagonal => {
-            let off = b.abs().max(c.abs());
-            (off, off <= lin)
-        }
-        Kind::Triangular => (c.abs(), c.abs() <= lin),
-        Kind::Symmetric => ((b - c).abs(), (b - c).abs() <= lin),
-        Kind::PosDef => {
+        Kind::Scalar => at_most(b.abs().max(c.abs()).max((a - d).abs()), lin),
+        Kind::Diagonal => at_most(b.abs().max(c.abs()), lin),
+        Kind::Upper => at_most(c.abs(), lin),
+        Kind::Lower => at_most(b.abs(), lin),
+        Kind::Symmetric => at_most((b - c).abs(), lin),
+        Kind::PosDef | Kind::PosSemidef => {
             let (asym, low) = ((b - c).abs(), least_form(m));
-            (asym.max(-low).max(0.0), asym <= lin && low > lin)
+            let positive = if kind == Kind::PosDef { low > lin } else { low >= -lin };
+            (asym.max(-low).max(0.0), asym <= lin && positive)
         }
-        Kind::Skew => {
-            let off = a.abs().max(d.abs()).max((b + c).abs());
-            (off, off <= lin)
+        Kind::Indefinite => {
+            let asym = (b - c).abs();
+            (asym.max(det.max(0.0)), asym <= lin && det < -quad)
         }
-        Kind::Orthogonal => {
-            let off = size(t * m - id);
-            (off, off <= quad)
+        Kind::Skew => at_most(a.abs().max(d.abs()).max((b + c).abs()), lin),
+        Kind::ScaledRotation => at_most((a - d).abs().max((b + c).abs()), lin),
+        Kind::Orthogonal => at_most(size(t * m - id), quad),
+        Kind::Rotation => at_most(size(t * m - id).max((det - 1.0).abs()), quad),
+        Kind::Reflection => at_most(size(t * m - id).max((det + 1.0).abs()), quad),
+        Kind::DetOne => at_most((det - 1.0).abs(), quad),
+        Kind::Normal => at_most(size(m * t - t * m), quad),
+        Kind::Projection => at_most(size(m * m - m), quad),
+        Kind::OrthProjection => {
+            let (idem, asym) = (size(m * m - m), (b - c).abs());
+            (idem.max(asym), idem <= quad && asym <= lin)
         }
-        Kind::Normal => {
-            let off = size(m * t - t * m);
-            (off, off <= quad)
-        }
-        Kind::Projection => {
-            let off = size(m * m - m);
-            (off, off <= quad)
-        }
-        Kind::Nilpotent => {
-            let off = size(m * m);
-            (off, off <= quad)
-        }
+        Kind::Involution => at_most(size(m * m - id), quad),
+        Kind::Nilpotent => at_most(size(m * m), quad),
         Kind::Shear => {
             let n = m - id;
             let off = size(n * n);
             (off, off <= quad && size(n) > EXACT)
         }
-        Kind::Markov => {
-            let off = (a + c - 1.0).abs().max((b + d - 1.0).abs()).max(-a.min(b).min(c).min(d)).max(0.0);
-            (off, off <= lin)
+        Kind::Root => {
+            let (_, off, holds) = order(m);
+            (off, holds)
         }
+        Kind::Positive => {
+            let low = a.min(b).min(c).min(d);
+            ((-low).max(0.0), low > lin)
+        }
+        Kind::Markov | Kind::Doubly => {
+            let mut off = (a + c - 1.0).abs().max((b + d - 1.0).abs()).max(-a.min(b).min(c).min(d)).max(0.0);
+            if kind == Kind::Doubly {
+                off = off.max((a + b - 1.0).abs());
+            }
+            at_most(off, lin)
+        }
+        Kind::Dominant => {
+            let margin = (a.abs() - b.abs()).min(d.abs() - c.abs());
+            ((-margin).max(0.0), margin > lin)
+        }
+        Kind::Singular => at_most(det.abs(), quad),
+        Kind::RankOne => (det.abs(), det.abs() <= quad && size(m) > lin),
+        Kind::Permutation => at_most(size(m - id).min(size(m - SWAP)), lin),
+        Kind::Companion => at_most(a.abs().max((c - 1.0).abs()), lin),
+        Kind::JordanBlock => at_most(c.abs().max((b - 1.0).abs()).max((a - d).abs()), lin),
+        Kind::Any => (0.0, true),
     }
 }
 
 fn is(kind: Kind, m: DMat2) -> bool {
     test(kind, m).1
+}
+
+/// The kinds a matrix is of, as a mask over `KINDS`.
+fn kinds_of(m: DMat2) -> [bool; 30] {
+    KINDS.map(|k| is(k, m))
 }
 
 /// The sides of the kind's equation that are worked out from `m` (named `n`), to be
@@ -482,16 +834,21 @@ fn sides(kind: Kind, m: DMat2, n: &str) -> Vec<(String, DMat2)> {
     let p = paren(n);
     let t = m.transpose();
     match kind {
-        Kind::Symmetric | Kind::PosDef => vec![(format!(r"${p}^\top$"), t)],
+        Kind::Symmetric | Kind::PosDef | Kind::PosSemidef | Kind::Indefinite => vec![(format!(r"${p}^\top$"), t)],
         Kind::Skew => vec![(format!(r"${p}^\top$"), t), (format!("$-{p}$"), -m)],
-        Kind::Orthogonal => vec![(format!(r"${p}^\top {p}$"), t * m)],
+        Kind::Orthogonal | Kind::Rotation | Kind::Reflection => vec![(format!(r"${p}^\top {p}$"), t * m)],
         Kind::Normal => vec![(format!(r"${p}{p}^\top$"), m * t), (format!(r"${p}^\top {p}$"), t * m)],
-        Kind::Projection | Kind::Nilpotent => vec![(format!("${p}^2$"), m * m)],
+        Kind::Projection | Kind::Nilpotent | Kind::Involution => vec![(format!("${p}^2$"), m * m)],
+        Kind::OrthProjection => vec![(format!("${p}^2$"), m * m), (format!(r"${p}^\top$"), t)],
         Kind::Shear => {
             let k = m - DMat2::IDENTITY;
             vec![(format!("$({n} - I)^2$"), k * k)]
         }
-        Kind::Diagonal | Kind::Triangular | Kind::Markov => Vec::new(),
+        Kind::Root => {
+            let (k, _, _) = order(m);
+            vec![(format!("${p}^{{{k}}}$"), power(m, k))]
+        }
+        _ => Vec::new(),
     }
 }
 
@@ -499,10 +856,20 @@ fn sides(kind: Kind, m: DMat2, n: &str) -> Vec<(String, DMat2)> {
 /// is smaller than that.
 fn small(d: f64) -> String {
     if d == 0.0 || d >= 0.005 || !d.is_finite() {
-        num(d, 2)
+        num(d.min(1e9), 2)
     } else {
         format!("{d:.1e}").replace('-', "−")
     }
+}
+
+/// The share of a full turn, k/n in lowest terms, that the angle θ (radians, in
+/// (0, π]) is, for n up to `ROOT_MAX`.
+fn share_of_turn(theta: f64) -> Option<(u32, u32)> {
+    let turns = theta / std::f64::consts::TAU;
+    (1..=ROOT_MAX).find_map(|n| {
+        let k = (turns * n as f64).round();
+        ((turns * n as f64 - k).abs() < 1e-6 && k >= 1.0).then_some((k as u32, n))
+    })
 }
 
 /// The verdict on the kind's equation for `m` (named `n`): its first line, whether it
@@ -514,35 +881,85 @@ fn verdict(kind: Kind, m: DMat2, n: &str) -> (String, bool, Option<String>) {
     let by = format!(": they differ by up to ${}$", small(off));
     let line = |eq: String, ne: String| if holds { format!("{eq}{ok}") } else { format!("{ne}{by}") };
     let [a, b, c, d] = entries(m);
+    let e = |ij: u32| entry(n, ij);
+    let s = size(m).max(1.0);
+    let det = m.determinant();
+    let orthogonal = size(m.transpose() * m - DMat2::IDENTITY) <= EXACT * s * s;
     let first = match kind {
+        Kind::Scalar => {
+            if holds {
+                format!("${} = {} = 0$, ${} = {}${ok}", e(12), e(21), e(11), e(22))
+            } else if b.abs().max(c.abs()) <= EXACT * s {
+                format!("${} = {}$, ${} = {}$: not equal", e(11), num(a, 2), e(22), num(d, 2))
+            } else {
+                format!("${} = {}$, ${} = {}$: not both $0$", e(12), num(b, 2), e(21), num(c, 2))
+            }
+        }
         Kind::Diagonal => {
-            let (e12, e21) = (entry(n, 12), entry(n, 21));
             if holds {
-                format!("${e12} = {e21} = 0${ok}")
+                format!("${} = {} = 0${ok}", e(12), e(21))
             } else {
-                format!("${e12} = {}$, ${e21} = {}$: not both $0$", num(b, 2), num(c, 2))
+                format!("${} = {}$, ${} = {}$: not both $0$", e(12), num(b, 2), e(21), num(c, 2))
             }
         }
-        Kind::Triangular => {
-            let e21 = entry(n, 21);
+        Kind::Upper | Kind::Lower => {
+            let (ij, v) = if kind == Kind::Upper { (21, c) } else { (12, b) };
             if holds {
-                format!("${e21} = 0${ok}")
+                format!("${} = 0${ok}", e(ij))
             } else {
-                format!("${e21} = {}$, not $0$", num(c, 2))
+                format!("${} = {}$, not $0$", e(ij), num(v, 2))
             }
         }
-        Kind::Symmetric | Kind::PosDef => {
+        Kind::Symmetric | Kind::PosDef | Kind::PosSemidef | Kind::Indefinite => {
             let off = (b - c).abs();
-            if off <= EXACT * size(m).max(1.0) {
+            if off <= EXACT * s {
                 format!(r"${p}^\top = {n}${ok}")
             } else {
                 format!(r"${p}^\top \ne {n}$: they differ by up to ${}$", small(off))
             }
         }
         Kind::Skew => line(format!(r"${p}^\top = -{p}$"), format!(r"${p}^\top \ne -{p}$")),
+        Kind::ScaledRotation => {
+            if holds {
+                format!("${} = {}$, ${} = -{}${ok}", e(11), e(22), e(21), e(12))
+            } else {
+                format!("${} - {} = {}$, ${} + {} = {}$: not both $0$", e(11), e(22), num(a - d, 2), e(21), e(12), num(b + c, 2))
+            }
+        }
         Kind::Orthogonal => line(format!(r"${p}^\top {p} = I$"), format!(r"${p}^\top {p} \ne I$")),
+        Kind::Rotation | Kind::Reflection => {
+            let want = if kind == Kind::Rotation { "1" } else { "-1" };
+            if holds {
+                format!(r"${p}^\top {p} = I$, $\det {p} = {want}${ok}")
+            } else if orthogonal {
+                format!(r"${p}^\top {p} = I$, but $\det {p} = {}$", num(det.signum(), 0))
+            } else {
+                format!(r"${p}^\top {p} \ne I$: they differ by up to ${}$", small(size(m.transpose() * m - DMat2::IDENTITY)))
+            }
+        }
+        Kind::DetOne | Kind::Singular | Kind::RankOne => {
+            let want = if kind == Kind::DetOne { "1" } else { "0" };
+            if holds {
+                format!(r"$\det {p} = {want}${ok}")
+            } else if kind == Kind::RankOne && size(m) <= EXACT * s {
+                format!("${n} = 0$: rank $0$, not $1$")
+            } else {
+                format!(r"$\det {p} = {}$, not ${want}$", num(det, 2))
+            }
+        }
         Kind::Normal => line(format!(r"${p}{p}^\top = {p}^\top {p}$"), format!(r"${p}{p}^\top \ne {p}^\top {p}$")),
         Kind::Projection => line(format!("${p}^2 = {n}$"), format!(r"${p}^2 \ne {n}$")),
+        Kind::OrthProjection => {
+            let idem = size(m * m - m) <= EXACT * s * s;
+            if holds {
+                format!(r"${p}^2 = {n}$, ${p}^\top = {n}${ok}")
+            } else if idem {
+                format!(r"${p}^2 = {n}$, but ${p}^\top \ne {n}$: slanted")
+            } else {
+                format!(r"${p}^2 \ne {n}$: they differ by up to ${}$", small(size(m * m - m)))
+            }
+        }
+        Kind::Involution => line(format!("${p}^2 = I$"), format!(r"${p}^2 \ne I$")),
         Kind::Nilpotent => line(format!("${p}^2 = 0$"), format!(r"${p}^2 \ne 0$")),
         Kind::Shear => {
             if holds {
@@ -553,145 +970,642 @@ fn verdict(kind: Kind, m: DMat2, n: &str) -> (String, bool, Option<String>) {
                 format!(r"$({n} - I)^2 \ne 0$: an entry is ${}$", small(off))
             }
         }
-        Kind::Markov => {
-            let (s1, s2, low) = (a + c, b + d, a.min(b).min(c).min(d));
-            let sums = if (s1 - 1.0).abs().max((s2 - 1.0).abs()) <= EXACT * size(m).max(1.0) { r"columns add to $1$".to_string() } else { format!("columns add to ${}$ and ${}$", num(s1, 2), num(s2, 2)) };
-            let signs = if low >= 0.0 { r"no entry below $0$".to_string() } else { format!("an entry is ${}$", num(low, 2)) };
-            format!("{sums}, {signs}{}", if holds { ok } else { "" })
+        Kind::Root => {
+            let (k, near, _) = order(m);
+            if holds {
+                format!("${p}^{{{k}}} = I${ok}")
+            } else {
+                format!(r"${p}^n \ne I$ for $n \le {ROOT_MAX}$: nearest, ${p}^{{{k}}}$, by ${}$", small(near))
+            }
         }
+        Kind::Positive => {
+            let low = a.min(b).min(c).min(d);
+            if holds {
+                format!(r"every entry $> 0$ (the least is ${}$){ok}", num(low, 2))
+            } else {
+                format!(r"an entry is ${}$: not above $0$", num(low, 2))
+            }
+        }
+        Kind::Markov | Kind::Doubly => {
+            let (s1, s2, low) = (a + c, b + d, a.min(b).min(c).min(d));
+            let near = |v: f64| (v - 1.0).abs() <= EXACT * s;
+            let sums = if near(s1) && near(s2) { r"columns add to $1$".to_string() } else { format!("columns add to ${}$ and ${}$", num(s1, 2), num(s2, 2)) };
+            let rows_too = match kind {
+                Kind::Doubly if near(a + b) && near(c + d) => r", rows too".to_string(),
+                Kind::Doubly => format!(", rows to ${}$ and ${}$", num(a + b, 2), num(c + d, 2)),
+                _ => String::new(),
+            };
+            let signs = if low >= 0.0 { r"no entry below $0$".to_string() } else { format!("an entry is ${}$", num(low, 2)) };
+            format!("{sums}{rows_too}, {signs}{}", if holds { ok } else { "" })
+        }
+        Kind::Dominant => {
+            if holds {
+                format!("$|{}| > |{}|$, $|{}| > |{}|${ok}", e(11), e(12), e(22), e(21))
+            } else if a.abs() - b.abs() <= d.abs() - c.abs() {
+                format!(r"$|{}| = {} \le |{}| = {}$", e(11), num(a.abs(), 2), e(12), num(b.abs(), 2))
+            } else {
+                format!(r"$|{}| = {} \le |{}| = {}$", e(22), num(d.abs(), 2), e(21), num(c.abs(), 2))
+            }
+        }
+        Kind::Permutation => {
+            if holds {
+                if size(m - DMat2::IDENTITY) <= EXACT * s {
+                    format!("${n} = I${ok}")
+                } else {
+                    format!("${n} = S$, the swap{ok}")
+                }
+            } else {
+                format!(r"neither $I$ nor $S$: off by ${}$", small(off))
+            }
+        }
+        Kind::Companion => {
+            if holds {
+                format!("${} = 0$, ${} = 1${ok}", e(11), e(21))
+            } else {
+                format!("${} = {}$, ${} = {}$: not $0$ and $1$", e(11), num(a, 2), e(21), num(c, 2))
+            }
+        }
+        Kind::JordanBlock => {
+            if holds {
+                format!("${} = 0$, ${} = 1$, ${} = {}${ok}", e(21), e(12), e(11), e(22))
+            } else {
+                format!("${} = {}$, ${} = {}$, ${} - {} = {}$", e(21), num(c, 2), e(12), num(b, 2), e(11), e(22), num(a - d, 2))
+            }
+        }
+        Kind::Any => "any matrix: no equation is kept".into(),
     };
     let second = match kind {
-        Kind::PosDef => {
+        Kind::PosDef | Kind::PosSemidef => {
             let low = least_form(m);
-            let rel = if low > EXACT * size(m).max(1.0) { r"> 0$ $\checkmark" } else { r"\le 0" };
+            let rel = match kind {
+                Kind::PosDef if low > EXACT * s => r"> 0$ $\checkmark",
+                Kind::PosDef => r"\le 0",
+                _ if low >= -EXACT * s => r"\ge 0$ $\checkmark",
+                _ => r"< 0",
+            };
             Some(format!(r"least $x \cdot {p}x$ with $|x| = 1$: ${} {rel}$", num(low, 2)))
         }
-        Kind::Orthogonal if holds => Some(if m.determinant() > 0.0 { format!(r"a rotation: $\det {p} = 1$") } else { format!(r"a reflection: $\det {p} = -1$") }),
+        Kind::Indefinite => {
+            let rel = if det < -EXACT * s * s { r"< 0$ $\checkmark" } else { r"\ge 0" };
+            Some(format!(r"$\det {p} = {} {rel}$", num(det, 2)))
+        }
+        Kind::Orthogonal if holds => Some(if det > 0.0 { format!(r"a rotation: $\det {p} = 1$") } else { format!(r"a reflection: $\det {p} = -1$") }),
         Kind::Nilpotent if holds => Some(if size(m) <= EXACT { format!("here ${n} = 0$ itself") } else { format!(r"and ${n} \ne 0$") }),
-        Kind::Normal if holds => Some(if (b - c).abs() <= EXACT * size(m).max(1.0) { "here: symmetric".to_string() } else { r"here: a turn and a scaling, $aI + bJ$".to_string() }),
+        Kind::Normal if holds => Some(if (b - c).abs() <= EXACT * s { "here: symmetric".to_string() } else { r"here: a scaled rotation, $aI + bJ$".to_string() }),
+        Kind::ScaledRotation if holds => Some(format!("the complex number ${} {} {}i$", num(a, 2), if c < 0.0 { "-" } else { "+" }, num(c.abs(), 2))),
+        Kind::Involution if holds => Some(
+            if size(m - DMat2::IDENTITY) <= EXACT * s {
+                format!("here ${n} = I$ itself")
+            } else if size(m + DMat2::IDENTITY) <= EXACT * s {
+                format!("here ${n} = -I$: a half turn")
+            } else if orthogonal {
+                r"and $A^\top A = I$: a mirror".to_string()
+            } else {
+                r"but $A^\top A \ne I$: a slanted mirror".to_string()
+            },
+        ),
+        Kind::Root if holds => {
+            let (k, _, _) = order(m);
+            Some(match eigen(m) {
+                Eigen::Complex { re, im } => {
+                    let (turn, of) = share_of_turn(im.atan2(re)).unwrap_or((1, k));
+                    let frame = if orthogonal { "a rotation" } else { "in a slanted frame" };
+                    format!("a turn by {turn}/{of} of a full turn, {frame}")
+                }
+                _ if k == 1 => "the identity".to_string(),
+                _ if size(m + DMat2::IDENTITY) <= EXACT * s => r"$-I$: a half turn".to_string(),
+                _ => r"an involution: eigenvalues $1$ and $-1$".to_string(),
+            })
+        }
+        Kind::Dominant => Some(if holds { r"so $0$ lies in neither Gershgorin disc".to_string() } else { "so the discs may hold 0".to_string() }),
+        Kind::Positive => Some("(not the same as positive definite)".to_string()),
+        Kind::Companion => Some(format!(r"$\lambda^2 - {}\lambda {} {} = 0$", num(d, 2), if b > 0.0 { "-" } else { "+" }, num(b.abs(), 2))),
+        Kind::RankOne if holds => {
+            let (u, v) = rank_one_factors(m);
+            Some(format!(r"$u = {}$, $v = {}$", tuple(&[u.x, u.y], 2), tuple(&[v.x, v.y], 2)))
+        }
         _ => None,
     };
     (first, holds, second)
 }
 
+/// A rank-one matrix as u vᵀ: u along its longer column, of length 1 (and pointing to
+/// the right, or up), v what it must then be.
+fn rank_one_factors(m: DMat2) -> (DVec2, DVec2) {
+    let col = if m.x_axis.length_squared() >= m.y_axis.length_squared() { m.x_axis } else { m.y_axis };
+    let mut u = col.try_normalize().unwrap_or(DVec2::X);
+    if u.x < 0.0 || (u.x == 0.0 && u.y < 0.0) {
+        u = -u;
+    }
+    // v_j = u · (column j), since column j = u v_j
+    (u, DVec2::new(u.dot(m.x_axis), u.dot(m.y_axis)))
+}
+
 /// What the matrix does to the plane, in words, with its numbers.
 fn does(kind: Kind, m: DMat2) -> String {
     let [a, b, c, d] = entries(m);
-    let degrees = |r: f64| {
-        let v = r.to_degrees();
-        format!("{:.1}°", if v.abs() < 0.05 { 0.0 } else { v })
-    };
     let e = eigen(m);
+    let s = size(m).max(1.0);
+    let zero = size(m) <= EXACT;
+    let identity = size(m - DMat2::IDENTITY) <= EXACT * s;
+    let stretch = |both: &str| match e {
+        Eigen::Real { l1, l2, lines: Lines::Two(..) } => format!(r"stretches along two perpendicular lines, by $\lambda = {}$ and ${}${both}", num(l1, 2), num(l2, 2)),
+        Eigen::Real { l1, .. } => format!("multiplies every vector by ${}$", num(l1, 2)),
+        Eigen::Complex { .. } => "has complex eigenvalues".into(),
+    };
+    let turn = |what: &str| {
+        let angle = c.atan2(a);
+        if angle.to_degrees().abs() < 0.05 {
+            "the identity: nothing moves".to_string()
+        } else {
+            format!("turns the plane by {}{what}", degrees(angle))
+        }
+    };
+    let mirror = || {
+        let mut line = 0.5 * c.atan2(a);
+        if line < 0.0 {
+            line += std::f64::consts::PI;
+        }
+        format!("reflects the plane in the line at {} to the $x$ axis", degrees(line))
+    };
     match kind {
+        _ if zero && matches!(kind, Kind::Scalar | Kind::Diagonal | Kind::Skew | Kind::Nilpotent | Kind::Singular | Kind::Projection | Kind::OrthProjection | Kind::ScaledRotation | Kind::Symmetric | Kind::PosSemidef | Kind::Normal) => {
+            "$A = 0$: it sends everything to $0$".into()
+        }
+        Kind::Scalar => format!("multiplies every vector by ${}$", num(a, 2)),
         Kind::Diagonal => format!("multiplies the $x$ axis by ${}$ and the $y$ axis by ${}$", num(a, 2), num(d, 2)),
-        Kind::Triangular => format!("keeps the $x$ axis on itself, multiplying it by ${}$", num(a, 2)),
-        Kind::Symmetric | Kind::PosDef => match e {
-            Eigen::Real { l1, l2, lines: Lines::Two(..) } => {
-                let both = if kind == Kind::PosDef { ", both positive" } else { "" };
-                format!(r"stretches along two perpendicular lines, by $\lambda = {}$ and ${}${both}", num(l1, 2), num(l2, 2))
-            }
-            Eigen::Real { l1, .. } => format!("multiplies every vector by ${}$", num(l1, 2)),
+        Kind::Upper => format!("keeps the $x$ axis on itself, multiplying it by ${}$", num(a, 2)),
+        Kind::Lower => format!("keeps the $y$ axis on itself, multiplying it by ${}$", num(d, 2)),
+        Kind::Symmetric => stretch(""),
+        Kind::PosDef => stretch(", both positive"),
+        Kind::PosSemidef => stretch(", neither negative"),
+        Kind::Indefinite => match e {
+            Eigen::Real { l1, l2, .. } => format!(r"stretches the orange line by $\lambda = {}$ and reverses the purple one, at right angles to it, by ${}$", num(l1, 2), num(l2, 2)),
             Eigen::Complex { .. } => "has complex eigenvalues".into(),
         },
         Kind::Skew => {
-            let w = c;
-            if w.abs() <= EXACT {
+            if c.abs() <= EXACT {
                 "$A = 0$: it sends everything to $0$".into()
             } else {
-                let way = if w > 0.0 { "anticlockwise" } else { "clockwise" };
-                format!("turns every arrow a quarter turn {way} and multiplies its length by ${}$", num(w.abs(), 2))
+                let way = if c > 0.0 { "anticlockwise" } else { "clockwise" };
+                format!("turns every arrow a quarter turn {way} and multiplies its length by ${}$", num(c.abs(), 2))
             }
         }
-        Kind::Orthogonal => {
-            if m.determinant() > 0.0 {
-                let angle = c.atan2(a);
-                if angle.to_degrees().abs() < 0.05 {
-                    "the identity: nothing moves".into()
-                } else {
-                    format!("turns the plane by {}, keeping every length", degrees(angle))
-                }
-            } else {
-                let mut mirror = 0.5 * c.atan2(a);
-                if mirror < 0.0 {
-                    mirror += std::f64::consts::PI;
-                }
-                format!("reflects the plane in the line at {} to the $x$ axis", degrees(mirror))
-            }
-        }
-        Kind::Normal => {
-            if (b - c).abs() <= EXACT * size(m).max(1.0) {
-                match e {
-                    Eigen::Real { l1, l2, lines: Lines::Two(..) } => format!(r"symmetric here: stretches along two perpendicular lines, by $\lambda = {}$ and ${}$", num(l1, 2), num(l2, 2)),
-                    _ => format!("multiplies every vector by ${}$", num(a, 2)),
-                }
-            } else {
-                let (r, angle) = (a.hypot(c), c.atan2(a));
-                format!("turns the plane by {} and multiplies every length by ${}$", degrees(angle), num(r, 2))
-            }
-        }
+        Kind::Orthogonal | Kind::Reflection if det_sign(m) < 0.0 => mirror(),
+        Kind::Orthogonal | Kind::Rotation => turn(", keeping every length"),
+        Kind::Reflection => mirror(),
+        Kind::Normal | Kind::ScaledRotation if (b - c).abs() <= EXACT * s => stretch(""),
+        Kind::Normal | Kind::ScaledRotation => format!("turns the plane by {} and multiplies every length by ${}$", degrees(c.atan2(a)), num(a.hypot(c), 2)),
+        Kind::DetOne => "keeps every area, and does not turn shapes over".into(),
+        Kind::Projection | Kind::OrthProjection if identity => r"$A = I$: nothing moves".into(),
         Kind::Projection => "drops every point along the purple line onto the orange one".into(),
-        Kind::Nilpotent if size(m) <= EXACT => "$A = 0$: it sends everything to $0$".into(),
+        Kind::OrthProjection => "drops every point straight onto the orange line, at right angles to it".into(),
+        Kind::Involution | Kind::Root | Kind::Permutation if identity => r"$A = I$: nothing moves".into(),
+        Kind::Involution | Kind::Root if size(m + DMat2::IDENTITY) <= EXACT * s => r"$A = -I$: turns everything half a turn".into(),
+        Kind::Involution if size(m.transpose() * m - DMat2::IDENTITY) <= EXACT * s * s => format!("{}: a mirror", mirror()),
+        Kind::Involution => "keeps the orange line and reverses the purple one: done twice, nothing has moved".into(),
+        Kind::Root => {
+            let (k, _, _) = order(m);
+            match e {
+                Eigen::Complex { .. } => format!("brings every point back where it started after ${k}$ steps"),
+                _ => "keeps the orange line and reverses the purple one: done twice, nothing has moved".into(),
+            }
+        }
         Kind::Nilpotent => "squashes the plane onto the orange line, and sends that line to $0$".into(),
         Kind::Shear => "keeps the orange line point for point, and slides every other point along it".into(),
+        Kind::Positive => match e {
+            Eigen::Real { l1, .. } => format!(r"stretches most along the orange line, by $\lambda = {}$, which runs through the positive quarter", num(l1, 2)),
+            Eigen::Complex { .. } => "has complex eigenvalues".into(),
+        },
         Kind::Markov => r"maps pairs of shares that add to $1$ (the segment from $(1, 0)$ to $(0, 1)$) to pairs that add to $1$".into(),
+        Kind::Doubly => format!(r"maps shares to shares and keeps $(1, 1)$: each new coordinate is ${}$ of one old one and ${}$ of the other", num(a, 2), num(b, 2)),
+        Kind::Dominant => "sends no direction to $0$: each diagonal entry outweighs the rest of its row".into(),
+        Kind::Singular => "squashes the plane onto a line".into(),
+        Kind::RankOne => r"squashes the plane onto one line: $Ax = (v \cdot x)\,u$".into(),
+        Kind::Permutation => r"swaps the two coordinates: a mirror in the line $y = x$".into(),
+        Kind::Companion => format!("sends $(1, 0)$ to $(0, 1)$, and $(0, 1)$ to its last column, ${}$", tuple(&[b, d], 2)),
+        Kind::JordanBlock => format!(r"multiplies the $x$ axis by $\lambda = {}$ and slides every other point along it", num(a, 2)),
+        Kind::Any => String::new(),
     }
 }
 
+/// The sign of the determinant (1 for a matrix with none to speak of).
+fn det_sign(m: DMat2) -> f64 {
+    if m.determinant() < 0.0 {
+        -1.0
+    } else {
+        1.0
+    }
+}
+
+// ----- what survives sums, products, inverses and transposes ---------------------------
+
+/// What is done with A (and B): it alone, a sum, a product, its inverse, its transpose.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Op {
+    Alone,
+    Sum,
+    Product,
+    Inverse,
+    Transpose,
+}
+
+const OPS: [Op; 5] = [Op::Alone, Op::Sum, Op::Product, Op::Inverse, Op::Transpose];
+
+impl Op {
+    /// Its button.
+    fn label(self) -> &'static str {
+        match self {
+            Op::Alone => "$A$ alone",
+            Op::Sum => "$A + B$",
+            Op::Product => "$AB$",
+            Op::Inverse => "$A^{-1}$",
+            Op::Transpose => r"$A^\top$",
+        }
+    }
+
+    /// The matrix it makes, as written (without dollars).
+    fn name(self) -> &'static str {
+        match self {
+            Op::Alone => "A",
+            Op::Sum => "A + B",
+            Op::Product => "AB",
+            Op::Inverse => "A^{-1}",
+            Op::Transpose => r"A^\top",
+        }
+    }
+
+    fn uses_b(self) -> bool {
+        matches!(self, Op::Sum | Op::Product)
+    }
+
+    /// "a sum of two symmetric matrices", "the inverse of a symmetric matrix".
+    fn of(self, kind: Kind) -> String {
+        let plural = kind.plural();
+        match self {
+            Op::Alone => kind.a_name(),
+            Op::Sum => format!("a sum of two {plural}"),
+            Op::Product => format!("a product of two {plural}"),
+            Op::Inverse => format!("the inverse of {}", kind.a_name()),
+            Op::Transpose => format!("the transpose of {}", kind.a_name()),
+        }
+    }
+}
+
+/// The matrix the picture is about: A, A + B, AB, A⁻¹ (none if A has no inverse) or Aᵀ.
+fn combine(op: Op, a: DMat2, b: DMat2) -> Option<DMat2> {
+    match op {
+        Op::Alone => Some(a),
+        Op::Sum => Some(a + b),
+        Op::Product => Some(a * b),
+        Op::Inverse => inverse(a),
+        Op::Transpose => Some(a.transpose()),
+    }
+}
+
+/// What a sum, a product, an inverse or a transpose of the kind can be counted on to be.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Keeps {
+    /// Always of the kind.
+    Always,
+    /// Of the kind whenever it exists (an inverse).
+    WhereItExists,
+    /// Never of the kind (an inverse may exist, and is not).
+    Never,
+    /// An inverse never exists.
+    NoInverse,
+    /// Sometimes: under the condition the table states.
+    Sometimes(&'static str),
+}
+
+impl Keeps {
+    fn short(self) -> &'static str {
+        match self {
+            Keeps::Always => "always",
+            Keeps::WhereItExists => "where it exists",
+            Keeps::Never => "never",
+            Keeps::NoInverse => "never: there is no inverse",
+            Keeps::Sometimes(when) => when,
+        }
+    }
+}
+
+impl Kind {
+    /// Whether a sum, a product, an inverse and a transpose of the kind are of the kind
+    /// (what `closure` says in full).
+    fn keeps(self, op: Op) -> Keeps {
+        use Keeps::*;
+        use Kind::*;
+        let [sum, product, inv, transpose] = match self {
+            Scalar | Diagonal => [Always, Always, WhereItExists, Always],
+            Upper | Lower => [Always, Always, WhereItExists, Sometimes("only if diagonal")],
+            Symmetric => [Always, Sometimes(r"exactly when $AB = BA$"), WhereItExists, Always],
+            Skew => [Always, Sometimes(r"only if it is $0$"), WhereItExists, Always],
+            Normal => [Sometimes("not always"), Sometimes("not always"), WhereItExists, Always],
+            ScaledRotation => [Always, Always, WhereItExists, Always],
+            Orthogonal | Rotation => [Sometimes("not always"), Always, Always, Always],
+            Reflection => [Sometimes("if the mirrors are 60° apart"), Never, Always, Always],
+            DetOne => [Sometimes("not always"), Always, Always, Always],
+            Projection => [Sometimes(r"exactly when $AB = BA = 0$"), Sometimes(r"if $AB = BA$; not always"), Sometimes(r"only $I$ has one"), Always],
+            OrthProjection => [Sometimes(r"exactly when $AB = 0$"), Sometimes(r"exactly when $AB = BA$"), Sometimes(r"only $I$ has one"), Always],
+            Involution => [Sometimes("not always"), Sometimes(r"exactly when $AB = BA$"), Always, Always],
+            Nilpotent => [Sometimes("not always"), Sometimes("not always"), NoInverse, Always],
+            Shear => [Never, Sometimes("along one line: a shear or $I$"), Always, Always],
+            Root => [Sometimes("not always"), Sometimes("not always"), Always, Always],
+            PosDef => [Always, Sometimes(r"exactly when $AB = BA$"), Always, Always],
+            PosSemidef => [Always, Sometimes(r"exactly when $AB = BA$"), WhereItExists, Always],
+            Indefinite => [Sometimes("not always"), Never, Always, Always],
+            Positive => [Always, Always, Never, Always],
+            Markov => [Sometimes("never; an average is"), Always, Sometimes(r"only for $I$ and the swap"), Sometimes("only if doubly stochastic")],
+            Doubly => [Sometimes("never; an average is"), Always, Sometimes(r"only for $I$ and the swap"), Always],
+            Dominant => [Sometimes("not always"), Sometimes("not always"), Sometimes("exists; not always"), Sometimes("not always")],
+            Singular => [Sometimes("not always"), Always, NoInverse, Always],
+            RankOne => [Sometimes("not always"), Sometimes(r"rank one, or $0$"), NoInverse, Always],
+            Permutation => [Never, Always, Always, Always],
+            Companion => [Never, Sometimes("rarely"), Sometimes("only for the swap"), Sometimes(r"only if $a_{12} = 1$")],
+            JordanBlock => [Never, Sometimes(r"if $\lambda + \mu = 1$"), Never, Never],
+            Any => [Always; 4],
+        };
+        match op {
+            Op::Sum => sum,
+            Op::Product => product,
+            Op::Inverse => inv,
+            Op::Transpose | Op::Alone => transpose,
+        }
+    }
+
+    /// What stays true of the kind under a sum, a product, an inverse or a transpose.
+    fn closure(self, op: Op) -> &'static str {
+        use Kind::*;
+        match (op, self) {
+            (Op::Alone, _) | (_, Any) => "",
+            (Op::Sum, Scalar) => r"A sum of multiples of $I$ is one: $aI + bI = (a + b)I$.",
+            (Op::Sum, Diagonal) => "A sum of diagonal matrices is diagonal.",
+            (Op::Sum, Upper) => "A sum of upper triangular matrices is upper triangular.",
+            (Op::Sum, Lower) => "A sum of lower triangular matrices is lower triangular.",
+            (Op::Sum, Symmetric) => r"A sum of symmetric matrices is symmetric: $(A + B)^\top = A^\top + B^\top$.",
+            (Op::Sum, Skew) => "A sum of skew-symmetric matrices is skew-symmetric.",
+            (Op::Sum, Normal) => "A sum of normal matrices need not be normal.",
+            (Op::Sum, ScaledRotation) => r"A sum of scaled rotations is one: $(aI + bJ) + (cI + dJ) = (a + c)I + (b + d)J$, as complex numbers add.",
+            (Op::Sum, Orthogonal) => r"A sum of orthogonal matrices need not be orthogonal: $I + I = 2I$ doubles every length.",
+            (Op::Sum, Rotation) => r"A sum of rotations need not be one: $I + I = 2I$ doubles every length (though turns by 0° and by 120° add to the turn by 60°).",
+            (Op::Sum, Reflection) => "A sum of two reflections is a reflection only when their mirrors are 60° apart.",
+            (Op::Sum, DetOne) => r"A sum need not have determinant $1$: $\det(I + I) = 4$.",
+            (Op::Sum, Projection) => r"$A + B$ is a projection only if $AB = BA = 0$.",
+            (Op::Sum, OrthProjection) => r"$A + B$ is an orthogonal projection exactly when $AB = 0$: onto lines at right angles, it is $I$.",
+            (Op::Sum, Involution) => r"A sum of involutions need not be one: $I + I = 2I$.",
+            (Op::Sum, Nilpotent) => "A sum of nilpotent matrices need not be nilpotent.",
+            (Op::Sum, Shear) => r"A sum of two shears is never a shear: its diagonal adds up to $4$, a shear's to $2$.",
+            (Op::Sum, Root) => r"A sum of roots of $I$ need not be one: $I + I = 2I$.",
+            (Op::Sum, PosDef) => r"A sum of positive definite matrices is positive definite: $x \cdot (A + B)x = x \cdot Ax + x \cdot Bx$.",
+            (Op::Sum, PosSemidef) => r"A sum of positive semidefinite matrices is one: $x \cdot (A + B)x = x \cdot Ax + x \cdot Bx \ge 0$.",
+            (Op::Sum, Indefinite) => r"A sum of indefinite matrices need not be indefinite: $A + (-A) = 0$.",
+            (Op::Sum, Positive) => "A sum of positive matrices is positive: each entry is a sum of two positive numbers.",
+            (Op::Sum, Markov) => r"A sum of Markov matrices is not one: its columns add to $2$. Their average is one.",
+            (Op::Sum, Doubly) => r"A sum of doubly stochastic matrices is not one: its rows and columns add to $2$. Their average is one.",
+            (Op::Sum, Dominant) => r"A sum of diagonally dominant matrices need not be one: the diagonals can cancel, as in $I + (-I) = 0$.",
+            (Op::Sum, Singular) => r"A sum of singular matrices need not be singular: $\diag(1, 0) + \diag(0, 1) = I$.",
+            (Op::Sum, RankOne) => r"A sum of two matrices of rank one is most often of rank two: $\diag(1, 0) + \diag(0, 1) = I$.",
+            (Op::Sum, Permutation) => r"A sum of permutation matrices is not one: its rows add to $2$.",
+            (Op::Sum, Companion) => r"A sum of companion matrices is not one: its $a_{21}$ is $2$.",
+            (Op::Sum, JordanBlock) => r"A sum of Jordan blocks is not one: its $a_{12}$ is $2$.",
+            (Op::Product, Scalar) => r"A product of multiples of $I$ is one: $(aI)(bI) = abI$.",
+            (Op::Product, Diagonal) => "A product of diagonal matrices is diagonal, and the same in either order.",
+            (Op::Product, Upper) => "A product of upper triangular matrices is upper triangular.",
+            (Op::Product, Lower) => "A product of lower triangular matrices is lower triangular.",
+            (Op::Product, Symmetric) => r"A product of symmetric matrices is symmetric exactly when they commute: $(AB)^\top = BA$.",
+            (Op::Product, Skew) => r"In the plane a product of two skew-symmetric matrices is $(aJ)(bJ) = -abI$: symmetric, and skew only if it is $0$.",
+            (Op::Product, Normal) => "A product of normal matrices need not be normal.",
+            (Op::Product, ScaledRotation) => "A product of scaled rotations is one, the same in either order: the angles add and the sizes multiply, as complex numbers multiply.",
+            (Op::Product, Orthogonal) => r"A product of orthogonal matrices is always orthogonal: $(AB)^\top AB = B^\top A^\top A B = I$.",
+            (Op::Product, Rotation) => "A product of rotations is the rotation by the sum of their angles, in either order.",
+            (Op::Product, Reflection) => r"A product of two reflections is never a reflection: its determinant is $(-1)(-1) = 1$. It is the rotation by twice the angle between the mirrors.",
+            (Op::Product, DetOne) => r"$\det AB = \det A \det B = 1$: a product of matrices of determinant $1$ has determinant $1$.",
+            (Op::Product, Projection) => "A product of projections is a projection if they commute, and need not be otherwise.",
+            (Op::Product, OrthProjection) => "A product of orthogonal projections is one exactly when they commute; otherwise it is not even a projection.",
+            (Op::Product, Involution) => r"$(AB)^2 = I$ exactly when $AB = BA$: then $ABAB = AABB = I$.",
+            (Op::Product, Nilpotent) => "A product of nilpotent matrices need not be nilpotent.",
+            (Op::Product, Shear) => r"A product of two shears along the same line is a shear (or $I$); along different lines it is not.",
+            (Op::Product, Root) => r"A product of roots of $I$ need not be one: two mirrors make the turn by twice the angle between them, which comes back to $I$ only for some angles.",
+            (Op::Product, PosDef) => "A product of positive definite matrices is positive definite exactly when they commute (its eigenvalues are positive either way).",
+            (Op::Product, PosSemidef) => "A product of positive semidefinite matrices is one exactly when they commute; otherwise it is not symmetric.",
+            (Op::Product, Indefinite) => r"A product of two indefinite matrices is never indefinite: $\det AB = \det A \det B > 0$.",
+            (Op::Product, Positive) => "A product of positive matrices is positive: each entry is a sum of products of positive numbers.",
+            (Op::Product, Markov) => "A product of Markov matrices is a Markov matrix.",
+            (Op::Product, Doubly) => "A product of doubly stochastic matrices is doubly stochastic.",
+            (Op::Product, Dominant) => r"A product need not be diagonally dominant: the square of the shear with $a_{12} = 0.9$ has $a_{12} = 1.8$, beside $a_{11} = 1$.",
+            (Op::Product, Singular) => r"$\det AB = \det A \det B = 0$: a product is singular if either factor is.",
+            (Op::Product, RankOne) => r"$(uv^\top)(wz^\top) = (v \cdot w)\,uz^\top$: of rank one again, or $0$ if $v \cdot w = 0$.",
+            (Op::Product, Permutation) => r"A product of permutation matrices is one: two shuffles make a shuffle. In the plane $S^2 = I$.",
+            (Op::Product, Companion) => r"$AB$ is a companion matrix only when $A$'s last column is $(0, 1)$.",
+            (Op::Product, JordanBlock) => r"Two Jordan blocks with diagonals $\lambda$ and $\mu$ have a product with $a_{12} = \lambda + \mu$: a Jordan block only when that is $1$.",
+            (Op::Inverse, Scalar) => r"The inverse of $cI$, where there is one ($c \ne 0$), is $(1/c)I$.",
+            (Op::Inverse, Diagonal) => r"The inverse of a diagonal matrix, where there is one, is diagonal: $1/a_{11}$ and $1/a_{22}$.",
+            (Op::Inverse, Upper) => "The inverse of an upper triangular matrix, where there is one, is upper triangular.",
+            (Op::Inverse, Lower) => "The inverse of a lower triangular matrix, where there is one, is lower triangular.",
+            (Op::Inverse, Symmetric) => "The inverse of a symmetric matrix, where there is one, is symmetric.",
+            (Op::Inverse, Skew) => r"In the plane the inverse of $wJ$ ($w \ne 0$) is $-J/w$: skew-symmetric too.",
+            (Op::Inverse, Normal) => "The inverse of a normal matrix, where there is one, is normal.",
+            (Op::Inverse, ScaledRotation) => r"The inverse of $aI + bJ$, where there is one, turns back and divides by the size, as $1/(a + bi)$ does: a scaled rotation.",
+            (Op::Inverse, Orthogonal) => r"The inverse of an orthogonal matrix is its transpose, $A^{-1} = A^\top$, and orthogonal too.",
+            (Op::Inverse, Rotation) => "The inverse of a rotation turns back by the same angle: a rotation.",
+            (Op::Inverse, Reflection) => "A reflection is its own inverse: reflecting twice puts everything back.",
+            (Op::Inverse, DetOne) => r"$\det A^{-1} = 1/\det A = 1$.",
+            (Op::Inverse, Projection) => r"A projection has no inverse unless it is $I$: it sends a whole line to $0$.",
+            (Op::Inverse, OrthProjection) => r"An orthogonal projection has no inverse unless it is $I$: it sends a whole line to $0$.",
+            (Op::Inverse, Involution) => r"An involution is its own inverse: $A^2 = I$ says $A^{-1} = A$.",
+            (Op::Inverse, Nilpotent) => r"A nilpotent matrix never has an inverse: it sends a whole line to $0$.",
+            (Op::Inverse, Shear) => r"The inverse of a shear slides back along the same line: $(I + N)^{-1} = I - N$.",
+            (Op::Inverse, Root) => r"If $A^n = I$, then $A^{-1} = A^{n - 1}$, and $(A^{-1})^n = I$: a root of $I$ with the same $n$.",
+            (Op::Inverse, PosDef) => r"The inverse of a positive definite matrix is positive definite: its eigenvalues are $1/\lambda$.",
+            (Op::Inverse, PosSemidef) => "Where there is an inverse, the matrix is positive definite, and so is its inverse.",
+            (Op::Inverse, Indefinite) => r"The inverse has the eigenvalues $1/\lambda$, of the same signs: indefinite too.",
+            (Op::Inverse, Positive) => r"The inverse of a positive matrix, where there is one, has a negative entry: its entries are $a_{22}$, $-a_{12}$, $-a_{21}$ and $a_{11}$, each divided by $\det A$.",
+            (Op::Inverse, Markov) => r"The inverse, where there is one, has columns adding to $1$ but a negative entry, unless $A$ is $I$ or the swap.",
+            (Op::Inverse, Doubly) => r"The inverse, where there is one, has a negative entry, unless $A$ is $I$ or the swap.",
+            (Op::Inverse, Dominant) => r"A diagonally dominant matrix always has an inverse ($0$ is in neither disc), but the inverse need not be diagonally dominant.",
+            (Op::Inverse, Singular) => r"A singular matrix has no inverse: it sends a whole line to $0$.",
+            (Op::Inverse, RankOne) => r"A matrix of rank one has no inverse: it sends a whole line to $0$.",
+            (Op::Inverse, Permutation) => r"In the plane each is its own inverse: $I^{-1} = I$, $S^{-1} = S$.",
+            (Op::Inverse, Companion) => r"The inverse of a companion matrix is one only for the swap, $a_{12} = 1$ and $a_{22} = 0$.",
+            (Op::Inverse, JordanBlock) => r"The inverse of a Jordan block, where there is one, has $a_{12} = -1/\lambda^2$: never $1$, so it is not one (it is upper triangular).",
+            (Op::Transpose, Scalar) => r"A multiple of $I$ is its own transpose.",
+            (Op::Transpose, Diagonal) => "A diagonal matrix is its own transpose.",
+            (Op::Transpose, Upper) => "The transpose of an upper triangular matrix is lower triangular; it is upper triangular too only if it is diagonal.",
+            (Op::Transpose, Lower) => "The transpose of a lower triangular matrix is upper triangular; it is lower triangular too only if it is diagonal.",
+            (Op::Transpose, Symmetric) => "A symmetric matrix is its own transpose.",
+            (Op::Transpose, Skew) => r"The transpose of a skew-symmetric matrix is $-A$: skew-symmetric too.",
+            (Op::Transpose, Normal) => r"The transpose of a normal matrix is normal: $AA^\top = A^\top A$ reads the same for $A^\top$.",
+            (Op::Transpose, ScaledRotation) => r"The transpose of $aI + bJ$ is $aI - bJ$: the same turn the other way, as $a - bi$ is to $a + bi$.",
+            (Op::Transpose, Orthogonal) => "The transpose of an orthogonal matrix is its inverse, and orthogonal too.",
+            (Op::Transpose, Rotation) => "The transpose of a rotation is its inverse: the turn back.",
+            (Op::Transpose, Reflection) => "A reflection is its own transpose, and its own inverse.",
+            (Op::Transpose, DetOne) => r"$\det A^\top = \det A = 1$.",
+            (Op::Transpose, Projection) => r"The transpose of a projection is a projection, $(A^\top)^2 = (A^2)^\top = A^\top$; onto another line, unless $A$ is symmetric.",
+            (Op::Transpose, OrthProjection) => "An orthogonal projection is its own transpose.",
+            (Op::Transpose, Involution) => r"$(A^\top)^2 = (A^2)^\top = I$: the transpose of an involution is one.",
+            (Op::Transpose, Nilpotent) => r"$(A^\top)^2 = (A^2)^\top = 0$: the transpose of a nilpotent matrix is nilpotent.",
+            (Op::Transpose, Shear) => "The transpose of a shear is a shear along the line at right angles to its own.",
+            (Op::Transpose, Root) => r"$(A^\top)^n = (A^n)^\top = I$: the transpose of a root of $I$ is one.",
+            (Op::Transpose, PosDef) => "A positive definite matrix is its own transpose.",
+            (Op::Transpose, PosSemidef) => "A positive semidefinite matrix is its own transpose.",
+            (Op::Transpose, Indefinite) => "An indefinite matrix is its own transpose.",
+            (Op::Transpose, Positive) => "The transpose has the same entries: positive.",
+            (Op::Transpose, Markov) => r"The transpose of a Markov matrix has rows adding to $1$; it is one only if $A$'s rows add to $1$ too (doubly stochastic).",
+            (Op::Transpose, Doubly) => "A doubly stochastic matrix of the plane is symmetric: its own transpose.",
+            (Op::Transpose, Dominant) => "The transpose need not be diagonally dominant: it is dominant by columns, not by rows.",
+            (Op::Transpose, Singular) => r"$\det A^\top = \det A = 0$.",
+            (Op::Transpose, RankOne) => r"$(uv^\top)^\top = vu^\top$: of rank one too.",
+            (Op::Transpose, Permutation) => r"In the plane each is its own transpose: $I^\top = I$, $S^\top = S$.",
+            (Op::Transpose, Companion) => r"The transpose of a companion matrix is one only when $a_{12} = 1$.",
+            (Op::Transpose, JordanBlock) => r"The transpose of a Jordan block is lower triangular, with its $1$ below the diagonal: not a Jordan block.",
+        }
+    }
+}
+
+/// The map the picture shows `power` steps in: Mᵏ when the power is a whole number k,
+/// and between two, the matrices of the steps either side mixed in proportion.
+fn powered(m: DMat2, power: f64) -> DMat2 {
+    let p = if power.is_finite() { power.max(0.0).min(ROOT_MAX as f64) } else { 0.0 };
+    let k = (p.floor() as u32).min(ROOT_MAX - 1);
+    let t = p - k as f64;
+    let lo = power_of(m, k);
+    let hi = lo * m;
+    let out = lo + (hi - lo) * t;
+    if out.is_finite() {
+        out
+    } else {
+        DMat2::ZERO
+    }
+}
+
+/// Mᵏ, kept finite: entries far beyond anything drawn are cut back (a matrix with
+/// entries up to 3 raised to the twelfth power can reach 6¹²).
+fn power_of(m: DMat2, k: u32) -> DMat2 {
+    let mut p = DMat2::IDENTITY;
+    for _ in 0..k {
+        p *= m;
+        if size(p) > 1e6 {
+            p = DMat2::from_cols_array(&p.to_cols_array().map(|v| v.max(-1e6).min(1e6)));
+        }
+    }
+    p
+}
+
 // ----- keeping a matrix of its kind ----------------------------------------------------
+
+/// The smallest positive eigenvalue a positive definite matrix may be dragged to.
+const LEAST_POSITIVE: f64 = 0.05;
+/// How far from the edge of their kinds the drags keep the kinds defined by a strict
+/// inequality: the least entry of a positive matrix, how much a diagonal entry of a
+/// dominant one outweighs the rest of its row, how far below 0 an indefinite one's
+/// determinant stays.
+const MARGIN: f64 = 0.05;
+/// The range of p₁₁ for the projection P behind an involution 2P − I: |p₁₁(1 − p₁₁)| ≤
+/// 1.5, so that a₂₁ = 2p₂₁ stays within the limits.
+const INVOLUTION_X: (f64, f64) = (-0.82, 1.82);
+/// The shortest first column a matrix of determinant 1 may be dragged to: its second
+/// column is then at least 1/0.5 = 2 long, and still within the limits.
+const LEAST_COLUMN: f64 = 0.5;
 
 /// A after its column `j` is dragged to `p`: that column goes as near `p` as the kind
 /// allows, and the rest changes only as much as it must for A to stay of its kind. Every
 /// entry stays within ±`ENTRY_MAX`.
 fn fit(kind: Kind, a: DMat2, j: usize, p: DVec2) -> DMat2 {
-    let p = if p.is_finite() { p.clamp(DVec2::splat(-ENTRY_MAX), DVec2::splat(ENTRY_MAX)) } else { a.col(j.min(1)) };
+    let j = j.min(1);
+    let p = if p.is_finite() { p.clamp(DVec2::splat(-ENTRY_MAX), DVec2::splat(ENTRY_MAX)) } else { a.col(j) };
+    let p = if p.is_finite() { p } else { DVec2::ZERO };
     let a = within_limits(a);
+    let fixed = |m: DMat2| within_limits(m);
     match (kind, j) {
         // (the ones that are not the same with the two coordinates swapped, and those
         // too simple to need it)
+        (Kind::Any, _) => {
+            let mut m = a;
+            *m.col_mut(j) = p;
+            m
+        }
+        (Kind::Scalar, 0) => DMat2::IDENTITY * p.x,
+        (Kind::Scalar, _) => DMat2::IDENTITY * p.y,
         (Kind::Diagonal, 0) => DMat2::from_cols(DVec2::new(p.x, 0.0), DVec2::new(0.0, a.y_axis.y)),
         (Kind::Diagonal, _) => DMat2::from_cols(DVec2::new(a.x_axis.x, 0.0), DVec2::new(0.0, p.y)),
-        (Kind::Triangular, 0) => DMat2::from_cols(DVec2::new(p.x, 0.0), a.y_axis),
-        (Kind::Triangular, _) => DMat2::from_cols(DVec2::new(a.x_axis.x, 0.0), p),
+        (Kind::Upper, 0) => DMat2::from_cols(DVec2::new(p.x, 0.0), a.y_axis),
+        (Kind::Upper, _) => DMat2::from_cols(DVec2::new(a.x_axis.x, 0.0), p),
+        (Kind::Lower, 0) => DMat2::from_cols(p, DVec2::new(0.0, a.y_axis.y)),
+        (Kind::Lower, _) => DMat2::from_cols(DVec2::new(a.x_axis.x, a.x_axis.y), DVec2::new(0.0, p.y)),
         (Kind::Markov, _) => {
             // the nearest point of the segment from (1, 0) to (0, 1)
             let t = (0.5 * (p.x - p.y + 1.0)).clamp(0.0, 1.0);
             let mut m = a;
-            *m.col_mut(j.min(1)) = DVec2::new(t, 1.0 - t);
+            *m.col_mut(j) = DVec2::new(t, 1.0 - t);
             // (the other column too, should A have come from elsewhere)
-            let k = 1 - j.min(1);
+            let k = 1 - j;
             let t = (0.5 * (m.col(k).x - m.col(k).y + 1.0)).clamp(0.0, 1.0);
             *m.col_mut(k) = DVec2::new(t, 1.0 - t);
             m
         }
-        (_, 0) => fit_first(kind, a, p),
+        (Kind::Doubly, _) => {
+            // [p, 1 − p; 1 − p, p]: the first column (p, 1 − p), the second (1 − p, p),
+            // each on the segment of shares
+            let (along, across) = if j == 0 { (p.x, p.y) } else { (p.y, p.x) };
+            let t = (0.5 * (along - across + 1.0)).clamp(0.0, 1.0);
+            rows([t, 1.0 - t, 1.0 - t, t])
+        }
+        (Kind::Positive, _) => {
+            let mut m = DMat2::from_cols_array(&a.to_cols_array().map(|v| v.max(MARGIN)));
+            *m.col_mut(j) = p.max(DVec2::splat(MARGIN));
+            m
+        }
+        (Kind::Permutation, _) => {
+            // the nearer of the two: the column dragged towards where I has it, or
+            // towards where the swap has it
+            let home = if j == 0 { DVec2::X } else { DVec2::Y };
+            if p.distance_squared(home) <= p.distance_squared(DVec2::new(home.y, home.x)) {
+                DMat2::IDENTITY
+            } else {
+                SWAP
+            }
+        }
+        (Kind::Companion, 0) => DMat2::from_cols(DVec2::Y, a.y_axis),
+        (Kind::Companion, _) => DMat2::from_cols(DVec2::Y, p),
+        (Kind::JordanBlock, 0) => rows([p.x, 1.0, 0.0, p.x]),
+        (Kind::JordanBlock, _) => rows([p.y, 1.0, 0.0, p.y]),
+        (_, 0) => fixed(fit_first(kind, a, p)),
         // the second column dragged is the first of the matrix with its coordinates
         // swapped (every other kind is still itself after that swap)
-        _ => SWAP * fit_first(kind, SWAP * a * SWAP, DVec2::new(p.y, p.x)) * SWAP,
+        _ => fixed(SWAP * fit_first(kind, SWAP * a * SWAP, DVec2::new(p.y, p.x)) * SWAP),
     }
 }
-
-/// The smallest positive eigenvalue a positive definite matrix may be dragged to.
-const LEAST_POSITIVE: f64 = 0.05;
 
 /// `fit` for the first column.
 fn fit_first(kind: Kind, a: DMat2, p: DVec2) -> DMat2 {
     let l = ENTRY_MAX;
     // the sign a coordinate keeps when it must stay off 0: its own, or else the one it had
     let side = |v: f64, was: f64| if v != 0.0 { v.signum() } else if was < 0.0 { -1.0 } else { 1.0 };
+    let unit = |p: DVec2| if p.length() > 1e-6 { p.normalize() } else { a.x_axis.try_normalize().unwrap_or(DVec2::X) };
     match kind {
         Kind::Symmetric => rows([p.x, p.y, p.y, a.y_axis.y]),
         Kind::Skew => {
             let w = p.y;
             rows([0.0, -w, w, 0.0])
         }
+        Kind::ScaledRotation => DMat2::from_cols(p, J * p),
         Kind::Orthogonal => {
-            let u = if p.length() > 1e-6 { p.normalize() } else { a.x_axis.try_normalize().unwrap_or(DVec2::X) };
+            let u = unit(p);
             let s = if a.determinant() < 0.0 { -1.0 } else { 1.0 };
             DMat2::from_cols(u, J * u * s)
         }
+        Kind::Rotation => {
+            let u = unit(p);
+            DMat2::from_cols(u, J * u)
+        }
+        Kind::Reflection => {
+            let u = unit(p);
+            DMat2::from_cols(u, -(J * u))
+        }
         Kind::Normal => {
             // the nearer of the two kinds a normal matrix of the plane can be: symmetric,
-            // or a turn and a scaling (the column dragged in both)
+            // or a scaled rotation (the column dragged in both)
             let dragged = DMat2::from_cols(p, a.y_axis);
             let sym = rows([p.x, p.y, p.y, a.y_axis.y]);
             let turn = DMat2::from_cols(p, J * p);
@@ -702,40 +1616,143 @@ fn fit_first(kind: Kind, a: DMat2, p: DVec2) -> DMat2 {
                 sym
             }
         }
-        Kind::PosDef => {
-            let mu = LEAST_POSITIVE;
+        Kind::DetOne => {
+            // the first column where it is dragged (no shorter than LEAST_COLUMN); the
+            // second the nearest point of the line det[p, q] = 1 to where it was, kept
+            // within the limits by sliding along that line
+            let u = unit(p);
+            let p = if p.length() >= LEAST_COLUMN { p } else { u * LEAST_COLUMN };
+            let foot = p.perp() / p.length_squared();
+            let t0 = (a.y_axis - foot).dot(u);
+            let (mut lo, mut hi) = (f64::NEG_INFINITY, f64::INFINITY);
+            for (f, d) in [(foot.x, u.x), (foot.y, u.y)] {
+                if d.abs() > 1e-12 {
+                    let (t1, t2) = ((-l - f) / d, (l - f) / d);
+                    lo = lo.max(t1.min(t2));
+                    hi = hi.min(t1.max(t2));
+                }
+            }
+            let t = if lo <= hi { t0.max(lo).min(hi) } else { 0.0 };
+            DMat2::from_cols(p, foot + u * t)
+        }
+        Kind::PosDef | Kind::PosSemidef => {
+            let mu = if kind == Kind::PosDef { LEAST_POSITIVE } else { 0.0 };
             let a11 = p.x.max(2.0 * mu).min(l);
             // (a₁₁ − μ)(a₂₂ − μ) ≥ a₂₁² keeps the smaller eigenvalue at μ or above, with
             // a₂₂ no larger than the limit
-            let reach = ((a11 - mu) * (l - mu)).sqrt();
+            let reach = ((a11 - mu) * (l - mu)).max(0.0).sqrt();
             let a21 = p.y.max(-reach).min(reach);
-            let a22 = a.y_axis.y.max(mu + a21 * a21 / (a11 - mu)).min(l);
+            let least = if a11 - mu > 0.0 { mu + a21 * a21 / (a11 - mu) } else { mu };
+            let a22 = a.y_axis.y.max(least).min(l);
             rows([a11, a21, a21, a22])
         }
-        Kind::Projection => {
-            // Ae₁ = p keeps the line through p, and sends e₁ − p (the direction from p
-            // to (1, 0)) to 0: A = p nᵀ / (n · p), n = (p_y, 1 − p_x), n · p = p_y. The
-            // second column p (1 − p_x)/p_y grows without end as p nears the x axis
-            // (there the two lines meet): p is kept far enough off it for that to stay
-            // within the limit.
-            let x = p.x.max(1.0 - l).min(l);
-            let y = side(p.y, a.x_axis.y) * p.y.abs().max((x * (1.0 - x)).abs() / l).max(1e-6);
-            let q = DVec2::new(x, y);
-            DMat2::from_cols(q, q * ((1.0 - x) / y))
+        Kind::Indefinite => {
+            // a₁₁a₂₂ − a₂₁² ≤ −MARGIN, a₂₂ moved as little as that needs; a₂₁ kept far
+            // enough from 0 for some a₂₂ within the limits to do (and, where a₁₁ is near
+            // 0, far enough that a₂₂ need not leap from one side to the other)
+            let a11 = p.x;
+            let need = (2.0 * MARGIN - l * a11.abs()).max(0.0).sqrt();
+            let a21 = side(p.y, a.x_axis.y) * p.y.abs().max(need);
+            let bound = (a21 * a21 - MARGIN) / a11;
+            let a22 = if a11 > 0.0 {
+                a.y_axis.y.min(bound).max(-l)
+            } else if a11 < 0.0 {
+                a.y_axis.y.max(bound).min(l)
+            } else {
+                a.y_axis.y
+            };
+            rows([a11, a21, a21, a22])
         }
-        Kind::Nilpotent => {
-            let n = nilpotent_from(p, a.x_axis.y, l);
-            within_limits(n)
+        Kind::Projection => projection_from(p, a.x_axis.y, 1.0 - l, l, l),
+        Kind::OrthProjection => {
+            // uuᵀ has the first column u₁u: on the circle through 0 and (1, 0)
+            let centre = DVec2::new(0.5, 0.0);
+            let off = p - centre;
+            let was = a.x_axis - centre;
+            let angle = if off.length() > 1e-9 { off.y.atan2(off.x) } else { was.y.atan2(was.x) };
+            let u = DVec2::from_angle(0.5 * angle);
+            DMat2::from_cols(u * u.x, u * u.y)
         }
+        Kind::Involution => {
+            // A = 2P − I, P a projection: P's first column is (p + (1, 0))/2, with
+            // |p₁₁(1 − p₁₁)| ≤ 1.5 and |p₁₂| ≤ 1, so that A's entries are within ±3
+            let q = (p + DVec2::X) * 0.5;
+            let half = (a + DMat2::IDENTITY) * 0.5;
+            projection_from(q, half.x_axis.y, INVOLUTION_X.0, INVOLUTION_X.1, 1.0) * 2.0 - DMat2::IDENTITY
+        }
+        Kind::Root => {
+            let det = a.determinant();
+            match eigen(a) {
+                Eigen::Complex { re, im } if det > 0.0 => {
+                    // keep the turn: trace 2 cos θ and determinant 1, the first column
+                    // where it is dragged (kept far enough off the x axis for a₁₂)
+                    let theta = im.atan2(re);
+                    let (k, n) = share_of_turn(theta).unwrap_or((1, 4));
+                    let (s, c) = (std::f64::consts::TAU * k as f64 / n as f64).sin_cos();
+                    // (a₁₁ near enough c for a₁₂ to fit within the limits, and a₂₂ = 2c − a₁₁ too)
+                    let w = (l * l - s * s).max(0.0).sqrt();
+                    let a11 = p.x.max((c - w).max(2.0 * c - l).max(-l)).min((c + w).min(2.0 * c + l).min(l));
+                    let reach = ((a11 - c) * (a11 - c) + s * s) / l;
+                    let a21 = side(p.y, a.x_axis.y) * p.y.abs().max(reach).min(l);
+                    rows([a11, -((a11 - c) * (a11 - c) + s * s) / a21, a21, 2.0 * c - a11])
+                }
+                // an involution (I and −I among them): keep it one
+                _ => fit_first(Kind::Involution, a, p),
+            }
+        }
+        Kind::Nilpotent => within_limits(nilpotent_from(p, a.x_axis.y, l)),
         Kind::Shear => {
             // A = I + N, with N nilpotent and Ne₁ = p − e₁ (kept small enough for A to
             // stay within the limit)
             let n = nilpotent_from(p - DVec2::X, a.x_axis.y, l - 1.0);
             DMat2::IDENTITY + n
         }
+        Kind::Dominant => {
+            // |a₁₁| ≥ |a₁₂| + MARGIN and |a₂₂| ≥ |a₂₁| + MARGIN: a₁₁ where it is dragged
+            // (no nearer 0 than MARGIN), a₁₂ cut back to fit under it, a₂₂ pushed out to
+            // stay above a₂₁
+            let a11 = side(p.x, a.x_axis.x) * p.x.abs().max(MARGIN);
+            let room = a11.abs() - MARGIN;
+            let a12 = a.y_axis.x.max(-room).min(room);
+            let a21 = p.y.max(-(l - MARGIN)).min(l - MARGIN);
+            let a22 = side(a.y_axis.y, 1.0) * a.y_axis.y.abs().max(a21.abs() + MARGIN).min(l);
+            rows([a11, a12, a21, a22])
+        }
+        Kind::Singular | Kind::RankOne => {
+            // the second column moved onto the line of the first (left as it was where
+            // the first is 0, which squashes everything onto it already)
+            if p.length() <= 1e-9 {
+                let col = if kind == Kind::RankOne && a.y_axis.length() <= 1e-9 { a.x_axis.try_normalize().unwrap_or(DVec2::X) * 0.05 } else { DVec2::ZERO };
+                DMat2::from_cols(col, a.y_axis)
+            } else {
+                let u = p.normalize();
+                DMat2::from_cols(p, u * u.dot(a.y_axis))
+            }
+        }
         // (handled in `fit`)
-        Kind::Diagonal | Kind::Triangular | Kind::Markov => a,
+        _ => a,
     }
+}
+
+/// The projection whose first column is `p`, or as near it as the limits allow: the
+/// first entry within `lo..hi`, and the entry `a₁₂` no larger in size than `off`. Ae₁ =
+/// p keeps the line through p, and sends e₁ − p (the direction from p to (1, 0)) to 0:
+/// A = p nᵀ / (n · p), n = (p_y, 1 − p_x), n · p = p_y. The second column p (1 − p_x)/p_y
+/// grows without end as p nears the x axis (there the two lines meet): p is kept far
+/// enough off it. `was` is the second entry of the first column before, whose sign is
+/// kept when p is on the axis.
+fn projection_from(p: DVec2, was: f64, lo: f64, hi: f64, off: f64) -> DMat2 {
+    let x = p.x.max(lo).min(hi);
+    let sign = if p.y != 0.0 {
+        p.y.signum()
+    } else if was < 0.0 {
+        -1.0
+    } else {
+        1.0
+    };
+    let y = sign * p.y.abs().max((x * (1.0 - x)).abs() / off).max(1e-6);
+    let q = DVec2::new(x, y);
+    DMat2::from_cols(q, q * ((1.0 - x) / y))
 }
 
 /// The nilpotent matrix whose first column is `p` (or as near `p` as entries within
@@ -763,28 +1780,55 @@ fn random(kind: Kind, rng: &mut Rng) -> DMat2 {
     let turn = |angle: f64| DMat2::from_angle(angle);
     let pi = std::f64::consts::PI;
     let m = match kind {
+        Kind::Scalar => DMat2::IDENTITY * (r(0.4, 1.8) * if r(0.0, 1.0) < 0.3 { -1.0 } else { 1.0 }),
         Kind::Diagonal => {
             let (x, y, s) = (r(0.4, 1.8), r(0.3, 1.6), r(0.0, 1.0));
             rows([if s < 0.2 { -x } else { x }, 0.0, 0.0, if s > 0.8 { -y } else { y }])
         }
-        Kind::Triangular => rows([r(0.4, 1.7), r(-1.2, 1.2), 0.0, r(-1.0, 1.4)]),
-        Kind::Symmetric | Kind::PosDef => {
-            let (big, other, angle) = (r(0.9, 1.9), if kind == Kind::PosDef { r(0.25, 0.9) } else { r(-1.2, 1.2) }, r(0.0, pi));
-            let q = turn(angle);
+        Kind::Upper => rows([r(0.4, 1.7), r(-1.2, 1.2), 0.0, r(-1.0, 1.4)]),
+        Kind::Lower => rows([r(0.4, 1.7), 0.0, r(-1.2, 1.2), r(-1.0, 1.4)]),
+        Kind::Symmetric | Kind::PosDef | Kind::PosSemidef | Kind::Indefinite => {
+            let big = r(0.9, 1.9);
+            let other = match kind {
+                Kind::PosDef => r(0.25, 0.9),
+                Kind::PosSemidef if r(0.0, 1.0) < 0.3 => 0.0,
+                Kind::PosSemidef => r(0.0, 0.9),
+                Kind::Indefinite => -r(0.3, 1.5),
+                _ => r(-1.2, 1.2),
+            };
+            let q = turn(r(0.0, pi));
             q * DMat2::from_diagonal(DVec2::new(big, other)) * q.transpose()
         }
-        Kind::Skew => {
-            let w = r(0.5, 1.5) * if r(0.0, 1.0) < 0.5 { -1.0 } else { 1.0 };
-            J * w
-        }
-        Kind::Orthogonal => {
-            if r(0.0, 1.0) < 0.5 {
-                turn(r(0.35, 2.8) * if r(0.0, 1.0) < 0.5 { -1.0 } else { 1.0 })
-            } else {
+        Kind::Skew => J * (r(0.5, 1.5) * if r(0.0, 1.0) < 0.5 { -1.0 } else { 1.0 }),
+        Kind::ScaledRotation => turn(r(0.3, 2.8) * if r(0.0, 1.0) < 0.5 { -1.0 } else { 1.0 }) * r(0.5, 1.6),
+        Kind::Orthogonal | Kind::Rotation | Kind::Reflection => {
+            let mirror = match kind {
+                Kind::Rotation => false,
+                Kind::Reflection => true,
+                _ => r(0.0, 1.0) < 0.5,
+            };
+            if mirror {
                 // the reflection in the line at the angle φ
                 let phi = r(0.0, pi);
                 rows([(2.0 * phi).cos(), (2.0 * phi).sin(), (2.0 * phi).sin(), -(2.0 * phi).cos()])
+            } else {
+                turn(r(0.35, 2.8) * if r(0.0, 1.0) < 0.5 { -1.0 } else { 1.0 })
             }
+        }
+        Kind::DetOne => {
+            // a matrix with a determinant well clear of 0, made positive and scaled to 1
+            let mut m = rows([r(-1.5, 1.5), r(-1.5, 1.5), r(-1.5, 1.5), r(-1.5, 1.5)]);
+            for _ in 0..20 {
+                if m.determinant().abs() > 0.4 {
+                    break;
+                }
+                m = rows([r(-1.5, 1.5), r(-1.5, 1.5), r(-1.5, 1.5), r(-1.5, 1.5)]);
+            }
+            if m.determinant() < 0.0 {
+                m.x_axis = -m.x_axis;
+            }
+            let d = m.determinant().max(0.4);
+            m * (1.0 / d.sqrt())
         }
         Kind::Normal => {
             if r(0.0, 1.0) < 0.5 {
@@ -795,6 +1839,16 @@ fn random(kind: Kind, rng: &mut Rng) -> DMat2 {
                 q * DMat2::from_diagonal(DVec2::new(r(0.8, 1.8), r(-1.2, 0.6))) * q.transpose()
             }
         }
+        Kind::Involution => {
+            // 2P − I for a projection P, tried until its entries are within the limits
+            for _ in 0..20 {
+                let m = random(Kind::Projection, rng) * 2.0 - DMat2::IDENTITY;
+                if size(m) <= ENTRY_MAX {
+                    return m;
+                }
+            }
+            Kind::Involution.default_a()
+        }
         Kind::Projection => {
             // the line kept, and the line sent to 0, at least 35° apart
             let kept = r(0.0, pi);
@@ -802,6 +1856,10 @@ fn random(kind: Kind, rng: &mut Rng) -> DMat2 {
             let (u, w) = (DVec2::from_angle(kept), DVec2::from_angle(lost));
             let n = w.perp();
             DMat2::from_cols(u * (n.x / n.dot(u)), u * (n.y / n.dot(u)))
+        }
+        Kind::OrthProjection => {
+            let u = DVec2::from_angle(r(0.0, pi));
+            DMat2::from_cols(u * u.x, u * u.y)
         }
         Kind::Nilpotent | Kind::Shear => {
             let u = DVec2::from_angle(r(0.0, pi));
@@ -813,16 +1871,60 @@ fn random(kind: Kind, rng: &mut Rng) -> DMat2 {
                 n
             }
         }
+        Kind::Root => {
+            // a turn by k/n of a full turn, seen in a slanted frame S (or an involution)
+            if r(0.0, 1.0) < 0.2 {
+                return random(Kind::Involution, rng);
+            }
+            let n = 3 + (r(0.0, 1.0) * 6.0).floor().min(5.0) as u32;
+            let k = if n >= 5 && r(0.0, 1.0) < 0.4 { 2 } else { 1 };
+            let s = rows([r(0.7, 1.3), r(-0.5, 0.5), r(-0.5, 0.5), r(0.7, 1.3)]);
+            let m = s * turn(std::f64::consts::TAU * k as f64 / n as f64) * s.inverse();
+            // (rebuilt from its first column, so that its trace and determinant are
+            // exactly those of the turn)
+            fit_first(Kind::Root, turn(std::f64::consts::TAU * k as f64 / n as f64), m.x_axis)
+        }
+        Kind::Positive => rows([r(0.1, 1.9), r(0.1, 1.9), r(0.1, 1.9), r(0.1, 1.9)]),
         Kind::Markov => {
             let (p, q) = (r(0.1, 0.95), r(0.05, 0.9));
             rows([p, q, 1.0 - p, 1.0 - q])
         }
+        Kind::Doubly => {
+            let p = r(0.05, 0.95);
+            rows([p, 1.0 - p, 1.0 - p, p])
+        }
+        Kind::Dominant => {
+            let (a, d) = (r(0.6, 2.0) * if r(0.0, 1.0) < 0.3 { -1.0 } else { 1.0 }, r(0.6, 2.0) * if r(0.0, 1.0) < 0.3 { -1.0 } else { 1.0 });
+            rows([a, a.abs() * r(-0.9, 0.9), d.abs() * r(-0.9, 0.9), d])
+        }
+        Kind::Singular | Kind::RankOne => {
+            let u = DVec2::from_angle(r(0.0, 2.0 * pi)) * r(0.6, 1.3);
+            let v = DVec2::from_angle(r(0.0, 2.0 * pi)) * r(0.6, 1.3);
+            DMat2::from_cols(u * v.x, u * v.y)
+        }
+        Kind::Permutation => {
+            if r(0.0, 1.0) < 0.5 {
+                DMat2::IDENTITY
+            } else {
+                SWAP
+            }
+        }
+        Kind::Companion => rows([0.0, r(-1.5, 1.5), 1.0, r(-2.0, 2.0)]),
+        Kind::JordanBlock => {
+            let l = r(0.3, 1.8) * if r(0.0, 1.0) < 0.3 { -1.0 } else { 1.0 };
+            rows([l, 1.0, 0.0, l])
+        }
+        Kind::Any => rows([r(-2.0, 2.0), r(-2.0, 2.0), r(-2.0, 2.0), r(-2.0, 2.0)]),
     };
     within_limits(m)
 }
 
 /// Another matrix of the kind, not too like `was` (or as unlike it as a few tries find).
 fn another(kind: Kind, was: DMat2, rng: &mut Rng) -> DMat2 {
+    if kind == Kind::Permutation {
+        // (there are only two)
+        return if size(was - DMat2::IDENTITY) <= EXACT { SWAP } else { DMat2::IDENTITY };
+    }
     let mut best = random(kind, rng);
     for _ in 0..12 {
         if size(best - was) > 0.35 && is(kind, best) {
@@ -833,84 +1935,122 @@ fn another(kind: Kind, was: DMat2, rng: &mut Rng) -> DMat2 {
     best
 }
 
-// ----- two at once ---------------------------------------------------------------------
+// ----- the map of the zoo --------------------------------------------------------------
 
-/// What is done with A (and B): it alone, a sum, a product, or its inverse.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Op {
-    Alone,
-    Sum,
-    Product,
-    Inverse,
-}
+/// Which kinds contain which: (smaller, larger), every matrix of the first being one of
+/// the second, for each pair with no kind between them (the rest follow along the
+/// lines). Each is proved in the primer's way and held by a test below.
+const EDGES: [(Kind, Kind); 30] = [
+    (Kind::Scalar, Kind::Diagonal),
+    (Kind::Scalar, Kind::ScaledRotation),
+    (Kind::Diagonal, Kind::Upper),
+    (Kind::Diagonal, Kind::Lower),
+    (Kind::Diagonal, Kind::Symmetric),
+    (Kind::JordanBlock, Kind::Upper),
+    (Kind::Symmetric, Kind::Normal),
+    (Kind::ScaledRotation, Kind::Normal),
+    (Kind::Orthogonal, Kind::Normal),
+    (Kind::Skew, Kind::ScaledRotation),
+    (Kind::Rotation, Kind::ScaledRotation),
+    (Kind::Rotation, Kind::Orthogonal),
+    (Kind::Rotation, Kind::DetOne),
+    (Kind::Shear, Kind::DetOne),
+    (Kind::Reflection, Kind::Orthogonal),
+    (Kind::Reflection, Kind::Indefinite),
+    (Kind::Reflection, Kind::Involution),
+    (Kind::Permutation, Kind::Orthogonal),
+    (Kind::Permutation, Kind::Involution),
+    (Kind::Permutation, Kind::Doubly),
+    (Kind::Involution, Kind::Root),
+    (Kind::Indefinite, Kind::Symmetric),
+    (Kind::PosSemidef, Kind::Symmetric),
+    (Kind::PosDef, Kind::PosSemidef),
+    (Kind::OrthProjection, Kind::PosSemidef),
+    (Kind::OrthProjection, Kind::Projection),
+    (Kind::Doubly, Kind::Symmetric),
+    (Kind::Doubly, Kind::Markov),
+    (Kind::Nilpotent, Kind::Singular),
+    (Kind::RankOne, Kind::Singular),
+];
 
-const OPS: [Op; 4] = [Op::Alone, Op::Sum, Op::Product, Op::Inverse];
+/// The map's places, in the order of `KINDS`: across a wide box `MAP_WIDE_BOX` (larger
+/// kinds higher), and down a tall one `MAP_TALL_BOX` for a phone. Laid out so that no
+/// two lines cross and no line passes through a box.
+const MAP_WIDE_BOX: (f32, f32) = (11.0, 5.85);
+const MAP_WIDE: [(f32, f32); 30] = [
+    (4.30, 3.24), // multiple of I
+    (5.29, 2.51), // diagonal
+    (4.14, 1.39), // upper triangular
+    (5.29, 1.42), // lower triangular
+    (7.13, 1.13), // symmetric
+    (3.28, 3.47), // skew-symmetric
+    (2.57, 0.30), // normal
+    (3.00, 2.43), // scaled rotation
+    (0.53, 2.20), // orthogonal
+    (2.26, 3.25), // rotation
+    (2.61, 4.62), // reflection
+    (2.16, 1.58), // det A = 1
+    (10.49, 3.65), // projection
+    (9.87, 4.59), // orthogonal projection
+    (7.01, 3.58), // involution
+    (10.20, 1.31), // nilpotent
+    (1.69, 2.27), // shear
+    (6.99, 2.71), // root of I
+    (9.25, 3.62), // positive definite
+    (9.82, 2.51), // positive semidefinite
+    (5.76, 3.35), // indefinite
+    (7.59, 5.30), // positive entries
+    (8.63, 2.62), // Markov
+    (8.19, 3.85), // doubly stochastic
+    (8.70, 5.30), // diagonally dominant
+    (9.66, 0.42), // singular
+    (9.02, 1.36), // rank one
+    (2.27, 5.47), // permutation
+    (9.91, 5.53), // companion
+    (4.20, 2.34), // Jordan block
+];
+const MAP_TALL_BOX: (f32, f32) = (4.4, 12.4);
+const MAP_TALL: [(f32, f32); 30] = [
+    (1.65, 4.25), // multiple of I
+    (1.66, 3.26), // diagonal
+    (2.95, 1.39), // upper triangular
+    (1.59, 2.18), // lower triangular
+    (0.43, 1.98), // symmetric
+    (2.79, 4.49), // skew-symmetric
+    (3.51, 0.25), // normal
+    (3.35, 3.45), // scaled rotation
+    (3.96, 5.21), // orthogonal
+    (3.30, 6.27), // rotation
+    (3.43, 9.24), // reflection
+    (2.34, 5.51), // det A = 1
+    (1.45, 9.49), // projection
+    (1.13, 10.51), // orthogonal projection
+    (2.08, 8.38), // involution
+    (1.99, 11.15), // nilpotent
+    (2.88, 7.23), // shear
+    (1.71, 7.33), // root of I
+    (0.30, 11.13), // positive definite
+    (0.44, 9.47), // positive semidefinite
+    (1.31, 5.30), // indefinite
+    (1.01, 11.93), // positive entries
+    (1.41, 6.49), // Markov
+    (0.94, 8.13), // doubly stochastic
+    (1.98, 11.99), // diagonally dominant
+    (2.23, 10.35), // singular
+    (2.87, 11.32), // rank one
+    (3.92, 11.09), // permutation
+    (3.31, 12.01), // companion
+    (2.98, 2.40), // Jordan block
+];
 
-impl Op {
-    /// Its button.
-    fn label(self) -> &'static str {
-        match self {
-            Op::Alone => "$A$ alone",
-            Op::Sum => "$A + B$",
-            Op::Product => "$AB$",
-            Op::Inverse => "$A^{-1}$",
-        }
+/// Where a kind sits on the map, in the units of its box.
+fn map_place(kind: Kind, tall: bool) -> (f32, f32) {
+    let k = index(kind);
+    if tall {
+        MAP_TALL[k]
+    } else {
+        MAP_WIDE[k]
     }
-
-    /// The matrix it makes, as written (without dollars).
-    fn name(self) -> &'static str {
-        match self {
-            Op::Alone => "A",
-            Op::Sum => "A + B",
-            Op::Product => "AB",
-            Op::Inverse => "A^{-1}",
-        }
-    }
-
-    fn uses_b(self) -> bool {
-        matches!(self, Op::Sum | Op::Product)
-    }
-
-    /// "a sum of two symmetric matrices", "the inverse of a symmetric matrix".
-    fn of(self, kind: Kind) -> String {
-        let plural = plural(kind);
-        match self {
-            Op::Alone => kind.a_name(),
-            Op::Sum => format!("a sum of two {plural}"),
-            Op::Product => format!("a product of two {plural}"),
-            Op::Inverse => format!("the inverse of {}", kind.a_name()),
-        }
-    }
-}
-
-/// "symmetric matrices", "projections".
-fn plural(kind: Kind) -> String {
-    match kind {
-        Kind::Projection => "projections".to_string(),
-        Kind::Shear => "shears".to_string(),
-        Kind::Markov => "Markov matrices".to_string(),
-        k => format!("{} matrices", k.name()),
-    }
-}
-
-/// The matrix the picture is about: A, A + B, AB or A⁻¹ (none if A has no inverse).
-fn combine(op: Op, a: DMat2, b: DMat2) -> Option<DMat2> {
-    match op {
-        Op::Alone => Some(a),
-        Op::Sum => Some(a + b),
-        Op::Product => Some(a * b),
-        Op::Inverse => inverse(a),
-    }
-}
-
-/// The map the picture shows `power` steps in: Mᵏ when the power is a whole number k,
-/// and between two, the matrices of the steps either side mixed in proportion.
-fn powered(m: DMat2, power: f64) -> DMat2 {
-    let p = power.clamp(0.0, 2.0);
-    let k = (p.floor() as i32).min(1);
-    let t = p - k as f64;
-    let (lo, hi) = if k == 0 { (DMat2::IDENTITY, m) } else { (m, m * m) };
-    lo + (hi - lo) * t
 }
 
 // ----- where things go -----------------------------------------------------------------
@@ -924,33 +2064,44 @@ const FRAME_HALF: Vec2 = Vec2::new(2.2, 1.85);
 struct Panel {
     min: Vec2,
     max: Vec2,
-    /// The kinds' buttons, in the order of `KINDS`.
-    chips: Vec<(Vec2, Vec2)>,
-    /// The line with the kind's equation (and, at its right end, what the bright
-    /// buttons mean).
+    /// The tabs: "any matrix", then the seven families.
+    tabs: Vec<(Vec2, Vec2)>,
+    /// Where the family's heading goes (its left, at its middle height); none on a phone.
+    heading: Option<Vec2>,
+    /// Each family's kinds' buttons, in the order of `Family::kinds`.
+    chips: Vec<Vec<(Vec2, Vec2)>>,
+    /// The line with the kind's equation.
     title: Vec2,
-    /// Where the line saying what the bright buttons mean starts (at its left, its middle
-    /// height): after the last button if there is room, or on a line of its own.
-    note: Vec2,
     /// How far down the verdict's lines may go.
     lines_end: f32,
     /// The matrices: the size of their numbers, how many to a row, where the first
-    /// one's name goes, and how far apart they are across and down.
+    /// one's name goes, and how far apart they are across and down (none on a short
+    /// panel, which has the title and the verdict alone).
     text: f32,
     per_row: usize,
     cells: Vec2,
     step: Vec2,
-    /// Where the table of what stays true of the kind goes (none on a phone).
+    rows: usize,
+    /// The line saying how many numbers are free (none where room is short).
+    facts: Option<Vec2>,
+    /// Where the table of what stays true of the kind goes (none where room is short).
     table: Option<Vec2>,
-    chart_title: Vec2,
-    chart: (Vec2, Vec2),
-    eigen_line: Vec2,
+    /// The complex plane, its title and the line under it (none on a short panel).
+    chart: Option<ChartPlace>,
     /// The buttons: another A; another B (when there is a B).
-    another: (Vec2, Vec2),
-    another_b: (Vec2, Vec2),
+    another: Option<((Vec2, Vec2), (Vec2, Vec2))>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct ChartPlace {
+    title: Vec2,
+    rect: (Vec2, Vec2),
+    line: Vec2,
 }
 
 /// Rows of the panel, in logical pixels.
+const TAB_SIZE: f32 = 10.5;
+const TAB_H: f32 = 25.0;
 const CHIP_SIZE: f32 = 10.5;
 const CHIP_H: f32 = 20.0;
 const CHIP_GAP: f32 = 4.0;
@@ -969,28 +2120,32 @@ const VERDICT_LINES_NARROW: usize = 2;
 const CELL: usize = 6;
 /// The panel's width beside the picture.
 const PANEL_W: f32 = 316.0;
-
-/// The size of the line under the kinds' buttons, and what it says.
-const NOTE_SIZE: f32 = 10.5;
-
-fn chips_note(op: Op) -> String {
-    format!("bright: every kind ${}$ is", op.name())
+/// The least room the picture needs for the plane and the map one above the other.
+const BOTH_W: f32 = 560.0;
+const BOTH_H: f32 = 800.0;
+/// The tabs' names: "any matrix" and the families'.
+fn tab_names() -> [&'static str; 8] {
+    let mut out = ["any matrix"; 8];
+    for (k, f) in FAMILIES.iter().enumerate() {
+        out[k + 1] = f.tab();
+    }
+    out
 }
 
-/// The kinds' buttons flowed into rows across `width`: their rectangles, from (0, 0),
-/// and the height they take.
-fn chip_layout(width: f32) -> (Vec<(Vec2, Vec2)>, f32) {
-    let (mut x, mut y) = (0.0f32, 0.0f32);
-    let mut out = Vec::with_capacity(KINDS.len());
-    for kind in KINDS {
+/// The kinds' buttons of a family flowed into rows across `width`: their rectangles,
+/// from (0, 0), and how many rows they take.
+fn chip_layout(kinds: &[Kind], width: f32) -> (Vec<(Vec2, Vec2)>, usize) {
+    let (mut x, mut y, mut rows) = (0.0f32, 0.0f32, 1usize);
+    let mut out = Vec::with_capacity(kinds.len());
+    for kind in kinds {
         let w = text_width(kind.chip(), CHIP_SIZE) + 13.0;
         if x > 0.0 && x + w > width {
-            (x, y) = (0.0, y + CHIP_H + CHIP_GAP);
+            (x, y, rows) = (0.0, y + CHIP_H + CHIP_GAP, rows + 1);
         }
         out.push((Vec2::new(x, y), Vec2::new(x + w, y + CHIP_H)));
         x += w + CHIP_GAP;
     }
-    (out, y + CHIP_H)
+    (out, rows)
 }
 
 /// How wide a matrix of numbers is at the size `s`.
@@ -1014,12 +2169,26 @@ fn matrix_fit(width: f32) -> (f32, usize) {
     (10.0, 1)
 }
 
+/// What the picture's part of the canvas shows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Show {
+    /// The plane alone (no room for the map beside it, and the map not asked for).
+    Plane,
+    /// The plane, with the map of the zoo under it.
+    Both,
+    /// The map alone.
+    Map,
+}
+
 #[derive(Clone, Debug)]
 struct Layout {
     /// A phone held upright: the panel goes below the picture.
     narrow: bool,
-    /// The part of the canvas the picture has to itself.
+    show: Show,
+    /// The part of the canvas the plane has to itself (where it is shown).
     picture: (Vec2, Vec2),
+    /// The map of the zoo, where it is shown.
+    map: Option<(Vec2, Vec2)>,
     /// None on a canvas too small to spare the room (the numbers are in the side panel).
     panel: Option<Panel>,
     /// Where the caption goes: its left and right, and its foot.
@@ -1027,18 +2196,28 @@ struct Layout {
 }
 
 impl Layout {
-    fn of(view: Vec2, inset: f32, two: bool) -> Layout {
+    /// The layout for a canvas of the size `view` whose top `inset` the application's
+    /// buttons cover, with two matrices or one (`two`), and the map asked for alone
+    /// or not (`map_alone`).
+    fn of(view: Vec2, inset: f32, two: bool, map_alone: bool) -> Layout {
         let narrow = view.x < 620.0 && view.y >= 560.0;
         let pad = if narrow { 10.0 } else { 12.0 };
         let width = if narrow { view.x } else { PANEL_W };
         let inner = width - 2.0 * pad;
-        let (chips, mut chips_h) = chip_layout(inner);
-        let last = chips.last().map_or(Vec2::ZERO, |c| Vec2::new(c.1.x, (c.0.y + c.1.y) * 0.5));
-        let beside = last.x + 10.0 + text_width(&chips_note(Op::Sum), NOTE_SIZE) <= inner;
-        let note_at = if beside { last + Vec2::new(10.0, 0.0) } else { Vec2::new(0.0, chips_h + 4.0 + LINE_H * 0.5) };
-        if !beside {
-            chips_h += 4.0 + LINE_H;
-        }
+        // the tabs, two rows of four
+        let tab_w = (inner - 3.0 * CHIP_GAP) / 4.0;
+        let tabs: Vec<(Vec2, Vec2)> = (0..8)
+            .map(|k| {
+                let at = Vec2::new((k % 4) as f32 * (tab_w + CHIP_GAP), (k / 4) as f32 * (TAB_H + CHIP_GAP));
+                (at, at + Vec2::new(tab_w, TAB_H))
+            })
+            .collect();
+        let tabs_h = 2.0 * TAB_H + CHIP_GAP;
+        // the kinds' buttons: room for the family that needs the most rows
+        let laid: Vec<(Vec<(Vec2, Vec2)>, usize)> = FAMILIES.iter().map(|f| chip_layout(f.kinds(), inner)).collect();
+        let chip_rows = laid.iter().map(|(_, r)| *r).max().unwrap_or(1);
+        let chips_h = chip_rows as f32 * (CHIP_H + CHIP_GAP) - CHIP_GAP;
+        let heading_h = if narrow { 0.0 } else { LINE_H };
         let (text, per_row) = matrix_fit(inner);
         let mat_h = matrix_size(2, 2, CELL, text).y;
         // (A, the sides of its equation; and B and what is made of the two, for two at once)
@@ -1046,74 +2225,111 @@ impl Layout {
         let rows = cells.div_ceil(per_row);
         let cell_h = LABEL_H + mat_h + 8.0;
         let verdict_h = if narrow { VERDICT_LINES_NARROW } else { VERDICT_LINES } as f32 * LINE_H;
+        let top_part = pad + tabs_h + 6.0 + heading_h + chips_h + 8.0 + TITLE_H + 4.0;
         let below = 6.0 + LINE_H + 8.0 + BUTTON_H + pad;
-        let without = pad + chips_h + 8.0 + TITLE_H + 4.0 + rows as f32 * cell_h + verdict_h + 6.0 + LINE_H + 4.0;
-        // (beside the picture, if it is tall enough, there is room for the table of what
-        // stays true of the kind, with a chart of a good size under it)
-        let table_h = if !narrow && inset + 24.0 + without + 4.0 * TABLE_LINE + 6.0 + 150.0 + below <= view.y { 4.0 * TABLE_LINE + 6.0 } else { 0.0 };
-        let above = without + table_h;
-        let whole = |caption| Layout { narrow, picture: (Vec2::new(0.0, inset), view), panel: None, caption };
-        let place = |min: Vec2, width: f32, chart_h: f32| {
+        let without = top_part + rows as f32 * cell_h + verdict_h + 6.0 + LINE_H + 4.0;
+        let place = |min: Vec2, width: f32, chart_h: f32, extras: bool, short: bool| {
             let x = min.x + pad;
             let mut y = min.y + pad;
-            let chips = chips.iter().map(|(lo, hi)| (*lo + Vec2::new(x, y), *hi + Vec2::new(x, y))).collect();
-            let note = note_at + Vec2::new(x, y);
+            let tabs = tabs.iter().map(|(lo, hi)| (*lo + Vec2::new(x, y), *hi + Vec2::new(x, y))).collect();
+            y += tabs_h + 6.0;
+            let heading = (heading_h > 0.0).then_some(Vec2::new(x, y + LINE_H * 0.5));
+            y += heading_h;
+            let chips = laid.iter().map(|(rects, _)| rects.iter().map(|(lo, hi)| (*lo + Vec2::new(x, y), *hi + Vec2::new(x, y))).collect()).collect();
             y += chips_h + 8.0;
             let title = Vec2::new(x, y);
             y += TITLE_H + 4.0;
             let cells_at = Vec2::new(x, y);
             let across = if per_row > 1 { (inner - matrix_w(text)) / (per_row - 1) as f32 } else { 0.0 };
+            if short {
+                // (the verdict's first line straight under the title)
+                let max = Vec2::new(min.x + width, y + LINE_H + pad);
+                return Panel { min, max, tabs, heading, chips, title, lines_end: y + LINE_H, text, per_row, cells: cells_at, step: Vec2::new(across, cell_h), rows: 0, facts: None, table: None, chart: None, another: None };
+            }
             y += rows as f32 * cell_h + verdict_h;
             let lines_end = y;
-            let table = (table_h > 0.0).then_some(Vec2::new(x, y));
-            y += table_h + 6.0;
+            let facts = extras.then_some(Vec2::new(x, y));
+            y += if extras { LINE_H + 2.0 } else { 0.0 };
+            let table = extras.then_some(Vec2::new(x, y));
+            y += if extras { 5.0 * TABLE_LINE + 6.0 } else { 0.0 };
+            y += 6.0;
             let chart_title = Vec2::new(x, y);
             y += LINE_H + 4.0;
-            let chart = (Vec2::new(x + 2.0, y), Vec2::new(min.x + width - pad - 2.0, y + chart_h));
+            let rect = (Vec2::new(x + 2.0, y), Vec2::new(min.x + width - pad - 2.0, y + chart_h));
             y += chart_h + 6.0;
-            let eigen_line = Vec2::new(x, y);
+            let line = Vec2::new(x, y);
             y += LINE_H + 8.0;
             let half = (inner - 8.0) * 0.5;
-            let another = (Vec2::new(x, y), Vec2::new(x + half, y + BUTTON_H));
-            let another_b = (Vec2::new(x + half + 8.0, y), Vec2::new(x + inner, y + BUTTON_H));
+            let another = ((Vec2::new(x, y), Vec2::new(x + half, y + BUTTON_H)), (Vec2::new(x + half + 8.0, y), Vec2::new(x + inner, y + BUTTON_H)));
             let max = Vec2::new(min.x + width, y + BUTTON_H + pad);
-            Panel { min, max, chips, title, note, lines_end, text, per_row, cells: cells_at, step: Vec2::new(across, cell_h), table, chart_title, chart, eigen_line, another, another_b }
+            Panel { min, max, tabs, heading, chips, title, lines_end, text, per_row, cells: cells_at, step: Vec2::new(across, cell_h), rows, facts, table, chart: Some(ChartPlace { title: chart_title, rect, line }), another: Some(another) }
         };
+        let whole = |caption| Layout { narrow, show: Show::Plane, picture: (Vec2::new(0.0, inset), view), map: None, panel: None, caption };
         if narrow {
-            // the panel below the picture, with the caption at its foot
-            let caption_h = 19.0 + 8.0;
-            let chart_h = ((inner - 4.0) * 0.3).clamp(80.0, 120.0);
-            let rest = above + below + caption_h;
-            // (the picture keeps at least the top 40 %)
-            let top = (view.y - rest - chart_h).max(view.y * 0.4);
+            if map_alone {
+                // the map above, and under it the panel cut short: the tabs, the kinds,
+                // the title and the verdict
+                let short_h = top_part + LINE_H + pad;
+                let top = view.y - short_h;
+                if top - inset < 240.0 {
+                    return whole(None);
+                }
+                let mut panel = place(Vec2::new(0.0, top), view.x, 0.0, false, true);
+                panel.max.y = view.y;
+                let map = (Vec2::new(6.0, inset + 6.0), Vec2::new(view.x - 6.0, top - 6.0));
+                return Layout { narrow, show: Show::Map, picture: (Vec2::new(0.0, inset), Vec2::new(view.x, top)), map: Some(map), panel: Some(panel), caption: None };
+            }
+            // the panel below the picture, with the caption at the picture's foot
+            let chart_h = ((inner - 4.0) * 0.3).clamp(80.0, 110.0);
+            let rest = without + below;
+            // (the picture keeps at least the top 38 %)
+            let top = (view.y - rest - chart_h).max(view.y * 0.38);
             let chart_h = (view.y - top - rest).min(chart_h);
             if chart_h < 60.0 {
                 return whole(Some((0.0, view.x, view.y - 10.0)));
             }
-            let mut panel = place(Vec2::new(0.0, top), view.x, chart_h);
+            let mut panel = place(Vec2::new(0.0, top), view.x, chart_h, false, false);
             panel.max.y = view.y;
-            return Layout { narrow, picture: (Vec2::new(0.0, inset), Vec2::new(view.x, top)), panel: Some(panel), caption: Some((0.0, view.x, view.y - 10.0)) };
+            return Layout { narrow, show: Show::Plane, picture: (Vec2::new(0.0, inset), Vec2::new(view.x, top)), map: None, panel: Some(panel), caption: Some((0.0, view.x, top - 8.0)) };
         }
         let top = inset + 12.0;
+        // (beside the picture, if it is tall enough, there is room for the line of free
+        // numbers and the table of what stays true of the kind, with a chart of a good
+        // size under them)
+        let extras_h = LINE_H + 2.0 + 5.0 * TABLE_LINE + 6.0;
+        let extras = top + without + extras_h + 150.0 + below <= view.y;
+        let above = without + if extras { extras_h } else { 0.0 };
         let chart_h = ((inner - 4.0) * 0.66).min(view.y - 12.0 - top - above - below);
         if view.x < 600.0 || chart_h < 90.0 {
             return whole(Some((0.0, view.x, view.y - 16.0)));
         }
-        let panel = place(Vec2::new(view.x - width - 12.0, top), width, chart_h);
-        let picture = (Vec2::new(0.0, inset), Vec2::new(panel.min.x - 8.0, view.y));
-        Layout { narrow, picture, panel: Some(panel), caption: Some((0.0, picture.1.x, view.y - 16.0)) }
+        let panel = place(Vec2::new(view.x - width - 12.0, top), width, chart_h, extras, false);
+        let region = (Vec2::new(0.0, inset), Vec2::new(panel.min.x - 8.0, view.y));
+        let size = region.1 - region.0;
+        if map_alone {
+            let map = (region.0 + Vec2::new(10.0, 10.0), region.1 - Vec2::new(4.0, 10.0));
+            return Layout { narrow, show: Show::Map, picture: region, map: Some(map), panel: Some(panel), caption: None };
+        }
+        if size.x >= BOTH_W && size.y >= BOTH_H {
+            // the plane above, the map below
+            let map_h = (size.y * 0.4).clamp(300.0, 400.0);
+            let map = (Vec2::new(region.0.x + 10.0, region.1.y - map_h - 10.0), Vec2::new(region.1.x - 4.0, region.1.y - 10.0));
+            let picture = (region.0, Vec2::new(region.1.x, map.0.y - 4.0));
+            return Layout { narrow, show: Show::Both, picture, map: Some(map), panel: Some(panel), caption: Some((0.0, picture.1.x, picture.1.y - 10.0)) };
+        }
+        Layout { narrow, show: Show::Plane, picture: region, map: None, panel: Some(panel), caption: Some((0.0, region.1.x, view.y - 16.0)) }
     }
 
     /// The part of the canvas the scene's frame is fitted into: the picture's, less the
     /// heading at its top and the caption at its foot.
     fn frame_room(&self) -> (Vec2, Vec2) {
         let (min, max) = self.picture;
-        let foot = if self.narrow { 6.0 } else { 56.0 };
+        // (on a phone the caption, two lines, sits at the picture's foot)
+        let foot = if self.narrow { 50.0 } else { 56.0 };
         let head = if self.narrow { 70.0 } else { 64.0 };
         (min + Vec2::new(12.0, head), max - Vec2::new(12.0, foot))
     }
 }
-
 fn inside_rect(p: Vec2, (min, max): (Vec2, Vec2)) -> bool {
     p.cmpge(min).all() && p.cmple(max).all()
 }
@@ -1502,39 +2718,50 @@ impl Glide {
     }
 }
 
-/// The steps an experiment plays, I to A to A²: seconds each step takes, and the pause
-/// at A between them.
-const STEP_SECONDS: f32 = 1.3;
-const STEP_PAUSE: f32 = 0.8;
-
-/// How many times the map is applied, `s` seconds into the steps.
-fn steps_at(s: f32) -> f64 {
-    let first = smoothstep(s / STEP_SECONDS);
-    let second = smoothstep((s - STEP_SECONDS - STEP_PAUSE) / STEP_SECONDS);
-    (first + second) as f64
+/// The steps an experiment plays, I to A to A² (or on to Aⁿ = I for a root of I):
+/// seconds each step takes, and the pause between them (shorter where there are many).
+fn step_seconds(top: u32) -> (f32, f32) {
+    if top <= 2 {
+        (1.3, 0.8)
+    } else {
+        (0.8, 0.3)
+    }
 }
 
-fn steps_length() -> f32 {
-    2.0 * STEP_SECONDS + STEP_PAUSE
+/// How many times the map is applied, `s` seconds into steps that go up to `top`.
+fn steps_at(s: f32, top: u32) -> f64 {
+    let (step, pause) = step_seconds(top);
+    (0..top).map(|k| smoothstep((s - k as f32 * (step + pause)) / step) as f64).sum()
 }
 
-/// The loop the first column is dragged round in the first experiment: its radius,
-/// and the seconds it takes.
-const LOOP_RADIUS: f64 = 0.4;
-const LOOP_SECONDS: f32 = 6.0;
+fn steps_length(top: u32) -> f32 {
+    let (step, pause) = step_seconds(top);
+    top as f32 * step + top.saturating_sub(1) as f32 * pause
+}
 
-/// Where the dragged column is, `s` seconds round the loop that starts at `from` (it
-/// sets off upwards and comes back there).
-fn loop_at(from: DVec2, s: f32) -> DVec2 {
-    let angle = -std::f64::consts::FRAC_PI_2 + std::f64::consts::TAU * smoothstep(s / LOOP_SECONDS) as f64;
-    let centre = from + DVec2::new(0.0, LOOP_RADIUS);
-    centre + DVec2::from_angle(angle) * LOOP_RADIUS
+/// A column of A carried along a straight line by an experiment: which column, from
+/// where to where, in how many seconds, and how far it has gone.
+#[derive(Clone, Copy, Debug)]
+struct Tour {
+    column: usize,
+    from: DVec2,
+    to: DVec2,
+    seconds: f32,
+    s: f32,
+}
+
+impl Tour {
+    fn at(&self, s: f32) -> DVec2 {
+        self.from.lerp(self.to, smoothstep(s / self.seconds) as f64)
+    }
 }
 
 struct Trial {
     label: &'static str,
     look_for: &'static str,
     kind: Kind,
+    /// The family whose kinds the panel shows.
+    family: Family,
     op: Op,
     a: [f64; 4],
     b: [f64; 4],
@@ -1542,65 +2769,84 @@ struct Trial {
     x: Option<[f64; 2]>,
     /// Play the steps I, A, A².
     steps: bool,
-    /// Drag the first column round a loop.
-    tour: bool,
+    /// Carry a column of A along a line: the column, where to, in how many seconds.
+    tour: Option<(usize, [f64; 2], f32)>,
+    /// The Gershgorin discs.
+    discs: bool,
+    /// The map of the zoo in place of the plane.
+    map_alone: bool,
 }
 
 const TRIALS: [Trial; 5] = [
     Trial {
-        label: "symmetric: right angles",
-        look_for: r"$A^\top = A$. Its eigenlines (orange and purple) cross at a right angle, and the circle becomes an ellipse with its axes along them, stretched by the eigenvalues $\lambda = 2$ and $0.5$: real numbers, as a symmetric matrix's always are. Watch the pink arrow being dragged round a loop: the green one follows to keep $A$ symmetric, and the right angle stays. Then drag either arrow yourself.",
-        kind: Kind::Symmetric,
-        op: Op::Alone,
-        a: [1.7, 0.6, 0.6, 0.8],
-        b: [1.5, -0.5, -0.5, -0.5],
+        label: "a complex number as a matrix",
+        look_for: r"A scaled rotation $aI + bJ$ is the complex number $a + bi$ written as a matrix. Here $A$ is $1 + 0.5i$ (size 1.12, angle 26.6°) and $B$, in blue, is $1.2 + 0.9i$ (size 1.5, angle 36.9°). Their product $AB$ turns the letter by 63.4°, the sum of 26.6° and 36.9°, and stretches it by 1.68, the product of 1.12 and 1.5: the angles add and the sizes multiply, as when complex numbers multiply. In the complex plane each matrix's eigenvalue $a + bi$ is its own complex number, and the dot of $AB$ sits at $(1 + 0.5i)(1.2 + 0.9i) = 0.75 + 1.5i$. And $BA = AB$: scaled rotations commute.",
+        kind: Kind::ScaledRotation,
+        family: Family::Symmetry,
+        op: Op::Product,
+        a: [1.0, -0.5, 0.5, 1.0],
+        b: [1.2, -0.9, 0.9, 1.2],
         x: None,
         steps: false,
-        tour: true,
+        tour: None,
+        discs: false,
+        map_alone: false,
     },
     Trial {
-        label: "orthogonal: a mirror",
-        look_for: r"$A^\top A = I$: every length and angle is kept, so the circle lands on itself and the letter keeps its size and shape. This one is a reflection ($\det A = -1$), and the letter comes out mirrored: it reads backwards. Points on the mirror line, through $(2, 1)$, stay put ($\lambda = 1$, orange); points on the line across it are reversed ($\lambda = -1$, purple). Both eigenvalues lie on the unit circle, as every orthogonal matrix's do: a turn by $\theta$ has the pair $\cos\theta \pm i \sin\theta$, on the same circle.",
-        kind: Kind::Orthogonal,
+        label: "an involution that is not a mirror",
+        look_for: r"$A^2 = I$: done twice, the map puts everything back, so $A$ is its own inverse. Watch the steps: after one the letter is flipped, slanted and stretched; after two it is home. Yet $A$ is no mirror: it does not keep lengths ($A^\top A \ne I$; it sends $(0, 1)$ to $(1, -1)$, which is longer). It keeps the orange line, the $x$ axis ($\lambda = 1$), and reverses the purple one, through $(1, -2)$ ($\lambda = -1$), and the two are not at right angles. So involution and root of $I$ are lit, and orthogonal and reflection are not.",
+        kind: Kind::Involution,
+        family: Family::Powers,
         op: Op::Alone,
-        a: [0.6, 0.8, 0.8, -0.6],
-        b: [0.6, 0.8, 0.8, -0.6],
-        x: None,
-        steps: false,
-        tour: false,
-    },
-    Trial {
-        label: "skew: always at right angles",
-        look_for: r"In the plane every skew-symmetric matrix is a multiple of the quarter turn $J$: here $A = 1.2J$, a quarter turn and a stretch by 1.2. So $Ax$ is at right angles to $x$, whatever $x$ is: $x \cdot Ax = 0$. Drag the white point $x$ and watch. No line is kept, and the eigenvalues are $\pm 1.2i$, on the imaginary line.",
-        kind: Kind::Skew,
-        op: Op::Alone,
-        a: [0.0, -1.2, 1.2, 0.0],
-        b: [0.0, 0.8, -0.8, 0.0],
-        x: Some([1.3, 0.5]),
-        steps: false,
-        tour: false,
-    },
-    Trial {
-        label: "nilpotent: twice is nothing",
-        look_for: r"The first step of $A$ squashes the whole plane onto the orange line, and the letter goes flat; the second step sends that line to $0$. So $A^2 = 0$, though $A$ itself is not $0$. Its only eigenvalue is $0$, and the orange line is its only eigenline: the line everything lands on is the line it sends to $0$. (A projection squashes the plane onto a line too, but there the second step changes nothing: $A^2 = A$.)",
-        kind: Kind::Nilpotent,
-        op: Op::Alone,
-        a: [0.8, -1.6, 0.4, -0.8],
-        b: [0.0, 1.0, 0.0, 0.0],
+        a: [1.0, 1.0, 0.0, -1.0],
+        b: [0.0, 1.0, 1.0, 0.0],
         x: None,
         steps: true,
-        tour: false,
+        tour: None,
+        discs: false,
+        map_alone: false,
     },
     Trial {
-        label: "a product of two symmetric",
-        look_for: r"$A$ and $B$ (blue) are both symmetric, but $AB$ is not: $(AB)^\top = B^\top A^\top = BA$, and here $BA \ne AB$. The product even turns every direction: its eigenvalues $0.88 \pm 0.99i$ are off the real line, where a symmetric matrix's never are. Two symmetric matrices have a symmetric product exactly when they commute. Choose orthogonal among the kinds: a product of two orthogonal matrices always is one.",
-        kind: Kind::Symmetric,
-        op: Op::Product,
-        a: [1.0, 0.5, 0.5, -1.5],
-        b: [1.5, -0.5, -0.5, -0.5],
+        label: "Gershgorin discs",
+        look_for: r"Each Gershgorin disc is centred on a diagonal entry, with the size of the other entry of its row as its radius, and every eigenvalue lies in one of the discs. Here $a_{12}$ grows from 0 to 2, and the first disc with it. While $a_{12} < 1$ the matrix is diagonally dominant: $0$ lies in neither disc, so $0$ is not an eigenvalue and $A$ has an inverse. Past 1 the first disc takes in $0$, and the light of diagonally dominant goes out. At $a_{12} = 2$ an eigenvalue reaches $0$: $A$ is singular, and the plane is squashed onto a line.",
+        kind: Kind::Any,
+        family: Family::Signs,
+        op: Op::Alone,
+        a: [1.0, 0.0, 0.5, 1.0],
+        b: [0.6, -0.8, 0.9, 0.4],
         x: None,
         steps: false,
-        tour: false,
+        tour: Some((1, [2.0, 1.0], 6.0)),
+        discs: true,
+        map_alone: false,
+    },
+    Trial {
+        label: "positive entries",
+        look_for: r"Every entry of $A$ is above $0$: positive entries, which is not positive definite ($A$ is not even symmetric). Then both eigenvalues are real, and the larger, $\lambda = 2$, is positive and larger in size than the other, $-0.5$. Its eigenline (orange) runs through the positive quarter of the plane: the eigenvector $(1, 1)$ has both entries positive. The other eigenline, through $(3, -2)$, does not. Watch the steps: $A^2$ stretches the orange line by 4 and the purple one by only 0.25, sixteen times less.",
+        kind: Kind::Positive,
+        family: Family::Signs,
+        op: Op::Alone,
+        a: [0.5, 1.5, 1.0, 1.0],
+        b: [1.0, 0.4, 0.6, 0.8],
+        x: None,
+        steps: true,
+        tour: None,
+        discs: false,
+        map_alone: false,
+    },
+    Trial {
+        label: "one matrix, many kinds",
+        look_for: r"The swap $S$ sends $(x, y)$ to $(y, x)$, and passes eleven of the thirty tests at once. It is a permutation; a reflection (in the line $y = x$), so orthogonal; symmetric, so normal; indefinite (its eigenvalues are $1$ and $-1$); an involution and a root of $I$ ($S^2 = I$); doubly stochastic, so Markov (every row and column adds to $1$); and a companion matrix ($a_{11} = 0$, $a_{21} = 1$). On the map each of these is lit, and so is every line between two of them. Go back to the plane and drag a column, and watch which lights go out.",
+        kind: Kind::Any,
+        family: Family::Named,
+        op: Op::Alone,
+        a: [0.0, 1.0, 1.0, 0.0],
+        b: [0.6, -0.8, 0.9, 0.4],
+        x: None,
+        steps: false,
+        tour: None,
+        discs: false,
+        map_alone: true,
     },
 ];
 
@@ -1618,16 +2864,21 @@ const X_START: DVec2 = DVec2::new(1.3, 0.5);
 
 pub struct Special {
     kind: Kind,
+    /// The family whose kinds the panel shows.
+    family: Family,
     op: Op,
     glide: Glide,
-    /// Seconds into the steps I, A, A², while they play (they start once the glide to a
-    /// new setting has arrived).
-    steps: Option<f32>,
-    /// Seconds round the loop the first column is dragged round, while it goes, and
-    /// where it set off from.
-    tour: Option<(f32, DVec2)>,
+    /// Seconds into the steps I, A, A², ... while they play (they start once the glide
+    /// to a new setting has arrived), and how many steps they go to.
+    steps: Option<(f32, u32)>,
+    /// A column carried along a line, while it goes.
+    tour: Option<Tour>,
     show_x: bool,
     eigenlines: bool,
+    /// The Gershgorin discs in the complex plane, for any kind.
+    discs: bool,
+    /// The map of the zoo in place of the plane.
+    map_alone: bool,
     /// The eigenlines' directions as last named: a line's name keeps its end. And where
     /// on the screen each name was put, which it follows through an ease (and whether
     /// it is still on its way, or must be put afresh: the view has changed).
@@ -1636,28 +2887,36 @@ pub struct Special {
     anchors_moving: bool,
     anchors_reset: bool,
     rng: Rng,
-    /// The heading's lines and the caption's, as last broken.
+    /// The heading's lines, the caption's and the map's title's, as last broken.
     heading: [Option<Broken>; 2],
     caption: Option<Broken>,
+    map_title: Option<Broken>,
     /// The canvas last drawn on and how much of its top the application's buttons
     /// cover: they decide where the panel goes, and so where the picture is.
     canvas: Vec2,
     inset: f32,
     measured: bool,
     new_view: bool,
+    /// The titles of the scenes the kinds turn up in.
+    titles: Vec<(&'static str, &'static str)>,
 }
 
 impl Special {
     fn new() -> Self {
         let kind = Kind::Symmetric;
+        let homes: Vec<&str> = KINDS.iter().map(|k| k.home().0).collect();
+        let titles = crate::scenes::registry().into_iter().filter(|d| homes.contains(&d.id)).map(|d| (d.id, d.title)).collect();
         Special {
             kind,
+            family: kind.family(),
             op: Op::Alone,
             glide: Glide::at(Setting { a: kind.default_a(), b: kind.default_b(), x: X_START, power: 1.0 }),
             steps: None,
             tour: None,
             show_x: false,
             eigenlines: true,
+            discs: false,
+            map_alone: false,
             last_lines: [None; 2],
             anchors: [None; 2],
             anchors_moving: false,
@@ -1665,32 +2924,49 @@ impl Special {
             rng: Rng::new(7),
             heading: [None, None],
             caption: None,
+            map_title: None,
             canvas: Vec2::new(1080.0, 1000.0),
             inset: 0.0,
             measured: false,
             new_view: false,
+            titles,
         }
     }
 
     /// Set up experiment `k` of `TRIALS`: every setting it depends on, glided to.
     fn set_up(&mut self, k: usize) {
         let trial = &TRIALS[k];
-        let two = self.op != Op::Alone;
+        let (two, alone) = (self.op != Op::Alone, self.map_alone);
         self.kind = trial.kind;
+        self.family = trial.family;
         self.op = trial.op;
-        self.new_view |= two != (self.op != Op::Alone);
+        self.map_alone = trial.map_alone;
+        self.new_view |= two != (self.op != Op::Alone) || alone != self.map_alone;
         let a = rows(trial.a);
         self.glide.to = Setting { a, b: rows(trial.b), x: DVec2::from(trial.x.unwrap_or([X_START.x, X_START.y])), power: if trial.steps { 0.0 } else { 1.0 } };
         self.show_x = trial.x.is_some();
         self.eigenlines = true;
-        self.steps = trial.steps.then_some(0.0);
-        self.tour = trial.tour.then_some((0.0, a.x_axis));
+        self.discs = trial.discs;
+        self.steps = trial.steps.then(|| (0.0, self.steps_top(a)));
+        self.tour = trial.tour.map(|(column, to, seconds)| Tour { column, from: a.col(column), to: DVec2::from(to), seconds, s: 0.0 });
+    }
+
+    /// How many steps the steps go to for the matrix `a`: twice, or for a root of I,
+    /// until it is back at I.
+    fn steps_top(&self, a: DMat2) -> u32 {
+        match (self.kind, self.op) {
+            (Kind::Root, Op::Alone) if is(Kind::Root, a) => order(a).0.max(2),
+            _ => 2,
+        }
     }
 
     /// Choose a kind: A stays if it is of that kind already (B too), and otherwise
     /// glides to the kind's own.
     fn choose(&mut self, kind: Kind) {
         self.kind = kind;
+        if kind != Kind::Any {
+            self.family = kind.family();
+        }
         let to = &mut self.glide.to;
         if !is(kind, to.a) {
             to.a = kind.default_a();
@@ -1699,7 +2975,7 @@ impl Special {
             to.b = kind.default_b();
         }
         (self.steps, self.tour) = (None, None);
-        to.power = to.power.round();
+        to.power = to.power.round().min(2.0);
     }
 
     /// Choose what is done with A and B.
@@ -1707,6 +2983,12 @@ impl Special {
         self.new_view |= (op == Op::Alone) != (self.op == Op::Alone);
         self.op = op;
         self.tour = None;
+    }
+
+    /// Show the map of the zoo in place of the plane, or the plane again.
+    fn set_map_alone(&mut self, on: bool) {
+        self.new_view |= on != self.map_alone;
+        self.map_alone = on;
     }
 
     /// Another A of the kind (or B, if `second`).
@@ -1719,6 +3001,7 @@ impl Special {
             self.glide.to.a = m;
         }
         (self.steps, self.tour) = (None, None);
+        self.glide.to.power = self.glide.to.power.round().min(2.0);
     }
 
     /// The setting as drawn.
@@ -1726,33 +3009,37 @@ impl Special {
         self.glide.shown
     }
 
-    /// Move everything on: `dt` seconds of the scene's time (the steps, the loop) and
+    /// Move everything on: `dt` seconds of the scene's time (the steps, the tour) and
     /// `real_dt` of the clock's (a change of setting glides by the clock, so that it is
     /// seen through even while the scene's time stands still).
     fn advance(&mut self, dt: f32, real_dt: f32) {
         self.glide.step(real_dt as f64);
-        if let Some(s) = self.steps {
+        if let Some((s, top)) = self.steps {
             if self.glide.arrived() {
                 let s = s + dt.max(0.0);
-                let power = steps_at(s);
+                let power = steps_at(s, top);
                 self.glide.now(|g| g.power = power);
-                self.steps = (s < steps_length()).then_some(s);
+                self.steps = (s < steps_length(top)).then_some((s, top));
             }
         }
-        if let Some((s, from)) = self.tour {
+        if let Some(mut tour) = self.tour {
             if self.glide.arrived() {
-                let s = s + dt.max(0.0);
-                let a = fit(self.kind, self.glide.to.a, 0, loop_at(from, s.min(LOOP_SECONDS)));
+                tour.s += dt.max(0.0);
+                let a = fit(self.kind, self.glide.to.a, tour.column, tour.at(tour.s.min(tour.seconds)));
                 self.glide.now(|g| g.a = a);
-                self.tour = (s < LOOP_SECONDS).then_some((s, from));
+                self.tour = (tour.s < tour.seconds).then_some(tour);
             }
         }
+    }
+
+    fn layout(&self, view: Vec2, inset: f32) -> Layout {
+        Layout::of(view, inset, self.op != Op::Alone, self.map_alone)
     }
 
     /// The canonical view: the picture's frame in the middle of the part of the canvas
     /// it has to itself.
     fn the_view(&self) -> View {
-        let lay = Layout::of(self.canvas, self.inset, self.op != Op::Alone);
+        let lay = self.layout(self.canvas, self.inset);
         let (min, max) = lay.frame_room();
         let room = (max - min).max(Vec2::splat(60.0));
         let per_unit = (room.x / (2.0 * FRAME_HALF.x)).min(room.y / (2.0 * FRAME_HALF.y)).max(1e-3);
@@ -1773,8 +3060,27 @@ impl Special {
         match k {
             0 => String::new(),
             1 => n.to_string(),
-            _ => format!("{}^{k}", paren(n)),
+            _ => format!("{}^{{{k}}}", paren(n)),
         }
+    }
+
+    /// The title of the scene with this id.
+    fn title_of(&self, id: &str) -> &'static str {
+        self.titles.iter().find(|(i, _)| *i == id).map_or("", |(_, t)| *t)
+    }
+
+    /// The links at the foot of the panel: where the chosen kind turns up, then the
+    /// zoo's other scenes.
+    fn links(&self) -> Vec<(&'static str, String)> {
+        let (home, says) = self.kind.home();
+        let first = if self.kind == Kind::Any { says.to_string() } else { format!("where {} turn up: {says}", self.kind.plural()) };
+        let mut out = vec![(home, first)];
+        for (id, text) in [("patterns", "the zoo of larger matrices, known by their pattern"), ("symskew", "every matrix as symmetric plus skew-symmetric"), ("project", "projections and mirrors"), ("commute", r"when $AB = BA$")] {
+            if out.len() < 4 && !out.iter().any(|(i, _)| *i == id) {
+                out.push((id, text.to_string()));
+            }
+        }
+        out
     }
 }
 
@@ -1804,6 +3110,25 @@ fn typeset_label(ui: &egui::Ui, text: &str) -> egui::WidgetText {
     ui::label_text(ui, text, 12.5, None, false)
 }
 
+/// A word with its first letter a capital.
+fn capitalised(s: &str) -> String {
+    let mut c = s.chars();
+    match c.next() {
+        Some(first) => first.to_uppercase().chain(c).collect(),
+        None => String::new(),
+    }
+}
+
+/// The names of the kinds lit in `lit`, joined: "symmetric, normal and orthogonal".
+fn named_list(lit: &[bool; 30]) -> String {
+    let names: Vec<&str> = KINDS.iter().zip(lit).filter(|(_, on)| **on).map(|(k, _)| k.chip()).collect();
+    match names.len() {
+        0 => "none of the thirty kinds".to_string(),
+        1 => names[0].to_string(),
+        n => format!("{} and {}", names[..n - 1].join(", "), names[n - 1]),
+    }
+}
+
 impl Scene for Special {
     fn view(&self) -> View {
         self.the_view()
@@ -1823,7 +3148,7 @@ impl Scene for Special {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _: &Gfx) {
-        ui::note(ui, r"Each kind of matrix is defined by an equation: symmetric is $A^\top = A$, orthogonal is $A^\top A = I$, a projection is $A^2 = A$ (three kinds add a condition). That equation decides what the map can do to the plane (the yellow letter and circle show it) and where its eigenvalues can lie: they are the dots in the complex plane beside the picture or below it, and the bright line or points are where this kind's must be. Pick a kind and drag the tips of the arrows: the matrix stays of its kind.");
+        ui::note(ui, r"A kind of matrix is defined by an equation, or a condition: symmetric is $A^\top = A$, orthogonal is $A^\top A = I$, a projection is $A^2 = A$. The equation decides what the map can do to the plane (the yellow letter and circle show it) and where its eigenvalues can lie (the dots in the complex plane, inside the bright region). Thirty kinds of $2 \times 2$ matrix are here, in seven families, and the map of the zoo shows which kinds lie inside which. Pick a kind and drag the arrows' tips: the matrix stays of its kind. Or pick any matrix, and see which kinds it is.");
 
         ui::section(ui, "Things to try");
         for (k, trial) in TRIALS.iter().enumerate() {
@@ -1833,20 +3158,38 @@ impl Scene for Special {
         }
 
         ui::section(ui, "Kind");
-        let names: Vec<&str> = KINDS.iter().map(|k| k.name()).collect();
-        let mut chosen = KINDS.iter().position(|k| *k == self.kind).unwrap_or(0);
-        if ui::choice(ui, &names, &mut chosen) {
-            self.choose(KINDS[chosen]);
+        let tabs = tab_names();
+        let mut tab = if self.kind == Kind::Any { 0 } else { FAMILIES.iter().position(|f| *f == self.family).map_or(0, |p| p + 1) };
+        if ui::choice(ui, &tabs, &mut tab) {
+            if tab == 0 {
+                self.choose(Kind::Any);
+            } else if let Some(f) = FAMILIES.get(tab - 1) {
+                self.family = *f;
+                if let Some(first) = f.kinds().first().filter(|_| !f.kinds().contains(&self.kind)) {
+                    self.choose(*first);
+                }
+            }
         }
-        ui::note(ui, &format!("{}: {}. {}.", self.kind.equation("A"), does(self.kind, self.glide.to.a), capitalised(self.kind.eigen_words())));
-        if ui.button(typeset_label(ui, "another of this kind")).clicked() {
+        if self.kind == Kind::Any {
+            ui::note(ui, "No kind is kept: drag the arrows or type the numbers freely. Every kind the matrix is of is lit, on the panel's buttons and on the map.");
+        } else {
+            let kinds = self.family.kinds();
+            let names: Vec<&str> = kinds.iter().map(|k| k.chip()).collect();
+            let mut chosen = kinds.iter().position(|k| *k == self.kind).unwrap_or(0);
+            if ui::choice(ui, &names, &mut chosen) {
+                self.choose(kinds[chosen]);
+            }
+            let (home, _) = self.kind.home();
+            ui::note(ui, &format!("{}: {}. {}. Free numbers: {}. It turns up in “{}”, linked at the foot of this panel.", self.kind.equation("A"), does(self.kind, self.glide.to.a), capitalised(self.kind.eigen_words()), self.kind.free(), self.title_of(home)));
+        }
+        if ui.button(typeset_label(ui, if self.kind == Kind::Any { "another matrix" } else { "another of this kind" })).clicked() {
             self.another(false);
         }
 
         ui::section(ui, "Matrix $A$");
         if let Some((j, col, typed)) = matrix_edit(ui, self.glide.to.a) {
             let a = fit(self.kind, self.glide.to.a, j, col);
-            if typed {
+            if typed || self.kind == Kind::Permutation {
                 self.glide.to.a = a;
             } else {
                 self.glide.now(|s| s.a = a);
@@ -1862,7 +3205,7 @@ impl Scene for Special {
             self.choose_op(OPS[op]);
         }
         if self.op == Op::Alone {
-            ui::note(ui, r"Is a sum, a product or an inverse of this kind of the same kind? Choose one: the picture and the equation are then about it, and $B$ is a second matrix of the kind (its arrows blue; drag their tips).");
+            ui::note(ui, r"Is a sum, a product, an inverse or a transpose of this kind of the same kind? Choose one: the picture and the equation are then about it, and $B$ is a second matrix of the kind (its arrows blue; drag their tips).");
         } else {
             ui::note(ui, self.kind.closure(self.op));
             if self.op.uses_b() && ui.button(typeset_label(ui, "another $B$")).clicked() {
@@ -1871,21 +3214,28 @@ impl Scene for Special {
         }
 
         ui::section(ui, "Steps");
+        let top = self.steps_top(self.glide.to.a);
         let mut power = self.glide.to.power as f32;
-        if ui::slider(ui, "times the map is applied", &mut power, 0.0..=2.0) {
+        if ui::slider(ui, "times the map is applied", &mut power, 0.0..=top as f32) {
             self.glide.now(|s| s.power = power as f64);
             (self.steps, self.tour) = (None, None);
         }
-        if ui.button(typeset_label(ui, "play: $I$, then once, then twice")).clicked() {
+        let play = if top > 2 { format!("play: $I$, then once, twice, up to {top} times") } else { "play: $I$, then once, then twice".to_string() };
+        if ui.button(typeset_label(ui, &play)).clicked() {
             self.glide.to.power = 0.0;
-            self.steps = Some(0.0);
+            self.steps = Some((0.0, top));
             self.tour = None;
         }
-        ui::note(ui, r"From the plane as it was (0) to the map applied once (1) and twice (2). Applied any other number of times, the columns of $A$ itself are the white arrows, and their tips can be dragged too.");
+        ui::note(ui, r"From the plane as it was (0) to the map applied once (1) and twice (2); a root of $I$ goes on until it is back. Applied any other number of times, the columns of $A$ itself are the white arrows, and their tips can be dragged too.");
 
         ui::section(ui, "Show");
         ui::checkbox(ui, &mut self.eigenlines, "the eigenlines");
         ui::checkbox(ui, &mut self.show_x, r"the white point $x$ and $Ax$");
+        ui::checkbox(ui, &mut self.discs, "the Gershgorin discs, for any kind");
+        let mut alone = self.map_alone;
+        if ui::checkbox(ui, &mut alone, "the map of the zoo in place of the plane").changed() {
+            self.set_map_alone(alone);
+        }
 
         ui::section(ui, "Reading the picture");
         let mut key = vec![
@@ -1903,48 +3253,57 @@ impl Scene for Special {
         if self.show_x {
             key.push((pal::WHITE, r"white dot: the point $x$ (drag it), and the arrow to where the map sends it"));
         }
-        key.push((pal::TEXT, "the complex plane, beside the picture or below it: the eigenvalues as dots, and the bright line or points where this kind's can lie; a red ring round a dot that lies outside them"));
+        key.push((pal::TEXT, "the complex plane, beside the picture or below it: the eigenvalues as dots, and the bright line, points or discs where this kind's can lie; a red ring round a dot that lies outside them"));
+        key.push((pal::LINK, "the map of the zoo: each kind joined by a line to the larger kinds just above it that contain it; lit, the kinds the matrix is; outlined, the kind chosen (click one to choose it)"));
         ui::key(ui, &key);
 
         ui::section(ui, "Words");
         ui::term(ui, r"Transpose $A^\top$:", r"$A$ flipped over its diagonal: its rows become columns, $(A^\top)_{ij} = a_{ji}$. For every $x$ and $y$, $x \cdot Ay = A^\top x \cdot y$.");
         ui::term(ui, "Eigenvalue, eigenline:", r"$Av = \lambda v$: along an eigenline the map only stretches, by $\lambda$ (a negative $\lambda$ reverses it).");
         ui::term(ui, "Complex eigenvalues:", r"when no line is kept, the eigenvalues are a pair $a \pm bi$, mirror images across the real line. A real matrix's complex eigenvalues always come in such pairs.");
-        ui::term(ui, "$I$, $J$:", r"$I$ leaves every point where it is; $J$ turns every vector a quarter turn anticlockwise, $J^2 = -I$.");
+        ui::term(ui, "$I$, $J$, $S$:", r"$I$ leaves every point where it is; $J$ turns every vector a quarter turn anticlockwise, $J^2 = -I$; $S$ swaps the two coordinates.");
         ui::term(ui, "Commute:", r"$AB = BA$: the two maps give the same result in either order.");
-        for kind in KINDS {
-            ui::term(ui, &format!("{}:", capitalised(kind.name())), kind_words(kind));
-        }
+        ui::term(ui, "Free numbers:", "how many of a matrix's numbers can be chosen freely, the rest then being fixed by the kind: 4 for any matrix, 3 for a symmetric one, 1 for a rotation.");
+        ui::term(ui, "Gershgorin disc:", "a disc in the complex plane centred on a diagonal entry, its radius the sizes of the other entries of its row added up. Every eigenvalue lies in one of them.");
+        ui::term(ui, "Contains:", "one kind contains another when every matrix of the second is one of the first: every rotation is orthogonal. The map draws a line for each such pair with no kind between them.");
+        ui::term(ui, "Positive, positive definite:", r"positive means every entry is above $0$; positive definite means symmetric with $x \cdot Ax > 0$ for every $x \ne 0$. Neither implies the other.");
 
         ui::section(ui, "Numbers");
         let a = self.glide.to.a;
         ui::readout(ui, "kind", self.kind.name());
         ui::readout(ui, r"$\det A$, $\tr A$", format!("${}, {}$", num(a.determinant(), 2), num(trace(a), 2)));
         ui::readout(ui, "eigenvalues of $A$", eigen_text(eigen(a)));
+        let lit = kinds_of(a);
+        ui::readout(ui, "kinds $A$ is of", format!("{} of 30", lit.iter().filter(|v| **v).count()));
         if self.op != Op::Alone {
             let n = self.op.name();
             match self.tested() {
                 Some(c) => {
                     ui::readout(ui, &format!("eigenvalues of ${n}$"), eigen_text(eigen(c)));
-                    ui::readout(ui, &format!("${n}$ is {}", self.kind.name()), if is(self.kind, c) { "yes" } else { "no" });
+                    if self.kind != Kind::Any {
+                        ui::readout(ui, &format!("${n}$ is {}", self.kind.name()), if is(self.kind, c) { "yes" } else { "no" });
+                    }
                 }
                 None => ui::readout(ui, &format!("${n}$"), r"none: $\det A = 0$"),
             }
         }
-        ui::readout(ui, "off the equation by", format!("${}$", self.tested().map_or("?".to_string(), |c| small(test(self.kind, c).0))));
-        ui::see_also(ui, &[("symskew", "every matrix as symmetric plus skew-symmetric"), ("project", "projections and mirrors"), ("commute", "when $AB = BA$"), ("eigen", "finding eigenvalues")]);
+        if self.kind != Kind::Any {
+            ui::readout(ui, "off the equation by", format!("${}$", self.tested().map_or("?".to_string(), |c| small(test(self.kind, c).0))));
+        }
+        let links = self.links();
+        let links: Vec<(&'static str, &str)> = links.iter().map(|(id, text)| (*id, text.as_str())).collect();
+        ui::see_also(ui, &links);
     }
 
     fn frame(&mut self, f: &mut Frame) {
         // the panel's place follows the canvas, and the picture's place follows the panel's
         let view = f.view_size();
-        let two = self.op != Op::Alone;
-        let lay = Layout::of(view, f.top_inset, two);
-        let before = Layout::of(self.canvas, self.inset, two);
+        let lay = self.layout(view, f.top_inset);
+        let before = self.layout(self.canvas, self.inset);
         // (a canvas squeezed to a sliver is one the controls have opened over, on a
         // phone: the picture is not seen then, and is left as it was for when they close)
         let covered = view.x < 160.0;
-        let changed = !covered && (lay.narrow != before.narrow || lay.panel.is_some() != before.panel.is_some() || (view - self.canvas).abs().max_element() > 24.0);
+        let changed = !covered && (lay.narrow != before.narrow || lay.show != before.show || lay.panel.is_some() != before.panel.is_some() || (view - self.canvas).abs().max_element() > 24.0);
         if !covered && (changed || !self.measured) {
             self.new_view |= changed;
             (self.canvas, self.measured) = (view, true);
@@ -1966,25 +3325,26 @@ impl Scene for Special {
             keep(lines_for(f, part));
         }
         keep(dashed_for(f, Part::Eigen));
-        for kind in [plot::AXES, plot::MARKS, plot::BUTTONS] {
+        for kind in [plot::AXES, plot::MARKS, plot::BUTTONS, MAP_EDGES, MAP_BOXES, DISCS] {
             keep(plot::apart(f, kind, false));
         }
         f.dl.points_with(PointKind::Overlay, PointStyle { outline_px: 0.0, ..Default::default() });
 
         let pointer = f.ptr.pos.map(|p| p / f.px);
-        if let Some(panel) = lay.panel.as_ref().filter(|_| !covered) {
-            if pointer.is_some_and(|p| inside_rect(p, (panel.min, panel.max))) {
-                // the panel is for its own buttons: no moving the view from there
-                f.handles.capture();
-                f.handles.claim_clicks();
-            }
+        let walls: Vec<(Vec2, Vec2)> = lay.panel.iter().map(|p| (p.min, p.max)).chain(lay.map).collect();
+        if !covered && pointer.is_some_and(|p| walls.iter().any(|w| inside_rect(p, *w))) {
+            // the panel and the map are for their own buttons: no moving the view from there
+            f.handles.capture();
+            f.handles.claim_clicks();
         }
         self.advance(f.dt, f.real_dt);
 
         let labels_before = f.dl.labels.len();
-        let plates = self.picture(f, &lay);
+        let plates = if lay.show == Show::Map { [None, None] } else { self.picture(f, &lay) };
         let numbers_from = f.dl.labels.len();
-        f.axes2();
+        if lay.show != Show::Map {
+            f.axes2();
+        }
         // no number of the axes is written over the heading or the caption
         let mut k = 0;
         f.dl.labels.retain(|l| {
@@ -1995,42 +3355,40 @@ impl Scene for Special {
             f.dl.labels.truncate(labels_before);
             return;
         }
-        if let Some(p) = &lay.panel {
-            // nothing written into the picture may show through the panel
-            let (lo, hi) = (p.min - Vec2::splat(2.0), p.max + Vec2::splat(2.0));
-            let mut k = 0;
-            f.dl.labels.retain(|l| {
-                k += 1;
-                k <= labels_before || l.backed || !inside_rect(l.pos, (lo, hi))
-            });
-            self.panel(f, p);
+        // nothing written into the picture may show through the panel or the map
+        let mut k = 0;
+        f.dl.labels.retain(|l| {
+            k += 1;
+            k <= labels_before || l.backed || !walls.iter().any(|(lo, hi)| inside_rect(l.pos, (*lo - Vec2::splat(2.0), *hi + Vec2::splat(2.0))))
+        });
+        let lit = self.tested().map_or([false; 30], kinds_of);
+        if let Some(rect) = lay.map {
+            self.map(f, rect, &lit, lay.show == Show::Map);
         }
-    }
-}
-
-/// A word with its first letter a capital.
-fn capitalised(s: &str) -> String {
-    let mut c = s.chars();
-    match c.next() {
-        Some(first) => first.to_uppercase().chain(c).collect(),
-        None => String::new(),
-    }
-}
-
-/// What each kind is, for the panel's words.
-fn kind_words(kind: Kind) -> &'static str {
-    match kind {
-        Kind::Diagonal => r"$0$ off the diagonal: each axis is stretched on its own.",
-        Kind::Triangular => r"$0$ below the diagonal, $a_{21} = 0$: the $x$ axis is kept.",
-        Kind::Symmetric => r"$A^\top = A$: a stretch along two perpendicular eigenlines.",
-        Kind::PosDef => r"symmetric, with $x \cdot Ax > 0$ for every $x \ne 0$: both stretches are positive.",
-        Kind::Skew => r"$A^\top = -A$: in the plane $wJ$, a quarter turn and a stretch.",
-        Kind::Orthogonal => r"$A^\top A = I$: lengths and angles are kept; a rotation or a reflection.",
-        Kind::Normal => r"$AA^\top = A^\top A$: eigenvectors at right angles (complex ones allowed).",
-        Kind::Projection => r"$A^2 = A$: each point dropped onto one line along another.",
-        Kind::Nilpotent => r"some power of it is $0$; in the plane, $A^2 = 0$.",
-        Kind::Shear => r"$(A - I)^2 = 0$, $A \ne I$: one line kept point for point, every other point sliding along it.",
-        Kind::Markov => r"entries $\ge 0$ and columns adding to $1$: shares go to shares.",
+        // the switch between the plane and the map, in the picture's corner
+        let corner = |rect: (Vec2, Vec2), w: f32| (Vec2::new(rect.1.x - w - 10.0, rect.0.y + 8.0), Vec2::new(rect.1.x - 10.0, rect.0.y + 8.0 + 22.0));
+        match (lay.show, lay.map) {
+            (Show::Map, Some(rect)) => {
+                if plot::button(f, corner(rect, 120.0), "back to the plane", 11.5, false) {
+                    self.set_map_alone(false);
+                }
+            }
+            (Show::Both, Some(rect)) => {
+                if plot::button(f, corner(rect, 100.0), "the map alone", 11.5, false) {
+                    self.set_map_alone(true);
+                }
+            }
+            _ => {
+                let (lo, hi) = lay.picture;
+                let at = (Vec2::new(hi.x - 130.0, hi.y - 34.0), Vec2::new(hi.x - 10.0, hi.y - 12.0));
+                if lay.panel.is_some() && hi.x - lo.x > 300.0 && plot::button(f, at, "the map of the zoo", 11.5, false) {
+                    self.set_map_alone(true);
+                }
+            }
+        }
+        if let Some(p) = &lay.panel {
+            self.panel(f, p, &lit);
+        }
     }
 }
 
@@ -2051,26 +3409,34 @@ impl Special {
         // the arrows of A itself are the map's own columns when the map is A
         let a_is_drawn = !two && (shown.power - 1.0).abs() < 1e-9;
 
-
         let mut room = Room::new(f);
         keep_ticks_clear(f, &mut room);
         if let Some(p) = &lay.panel {
             room.wall(p.min - Vec2::splat(4.0), p.max + Vec2::splat(4.0));
+        }
+        if let Some((lo, hi)) = lay.map {
+            room.wall(lo - Vec2::splat(4.0), hi + Vec2::splat(4.0));
         }
         let heading = self.heading(f, lay);
         room.wall(heading.0, heading.1);
         let mut plates = [Some(heading), None];
         if let Some((left, right, bottom)) = lay.caption {
             let parts: &[&str] = if lay.narrow { &["yellow: the letter and the circle after the map", "dashed: before"] } else { &["yellow: a letter and the unit circle, after the map", "dashed: before it"] };
+            // (clear of the button to the map in the corner)
+            let right = if lay.show == Show::Plane && lay.panel.is_some() { right - 140.0 } else { right };
             if let Some(plate) = self.caption(f, parts, (left, right), bottom) {
                 room.wall(plate.0, plate.1);
                 plates[1] = Some(plate);
             }
         }
+        if lay.show == Show::Plane && lay.panel.is_some() {
+            let hi = lay.picture.1;
+            room.wall(Vec2::new(hi.x - 136.0, hi.y - 40.0), hi);
+        }
 
         // where each handle may go, where the kind does not leave it free
         if a_is_drawn || two {
-            self.tracks(f, shown.a);
+            self.tracks(f);
         }
 
         // the unit circle and the F, before (dashed) and after the map
@@ -2083,9 +3449,10 @@ impl Special {
         for k in 0..F_OUTLINE.len() {
             f.dashed(F_OUTLINE[k].as_vec2(), F_OUTLINE[(k + 1) % F_OUTLINE.len()].as_vec2(), 1.0, pal::YELLOW.a(0.4));
         }
-        // (after a first step, where it was after one step stays faint, to compare the second with)
+        // (after a first step, where it was one step before stays faint, to compare with)
         if let Some(c) = tested.filter(|_| shown.power > 1.0) {
-            lines_for(f, Part::Steps).polyline(within(&F_OUTLINE.iter().chain(&F_OUTLINE[..1]).map(|p| c * *p).collect::<Vec<_>>(), box_lo, box_hi), 1.0, pal::YELLOW.a(0.3));
+            let before = powered(c, shown.power.floor().max(1.0) - if shown.power.fract() == 0.0 { 1.0 } else { 0.0 });
+            lines_for(f, Part::Steps).polyline(within(&F_OUTLINE.iter().chain(&F_OUTLINE[..1]).map(|p| before * *p).collect::<Vec<_>>(), box_lo, box_hi), 1.0, pal::YELLOW.a(0.3));
         }
         if let Some(m) = drawn {
             f.path(within(&circle.iter().map(|p| m * *p).collect::<Vec<_>>(), box_lo, box_hi), 2.0, pal::YELLOW.a(0.9));
@@ -2223,12 +3590,22 @@ impl Special {
                 let (j, second) = (which % 2, which >= 2);
                 let p = grip.as_dvec2();
                 let kind = self.kind;
+                // (a permutation leaps from I to the swap and back: the picture glides)
+                let leaps = kind == Kind::Permutation;
                 if second {
                     let b = fit(kind, self.glide.to.b, j, p);
-                    self.glide.now(|s| s.b = b);
+                    if leaps {
+                        self.glide.to.b = b;
+                    } else {
+                        self.glide.now(|s| s.b = b);
+                    }
                 } else {
                     let a = fit(kind, self.glide.to.a, j, p);
-                    self.glide.now(|s| s.a = a);
+                    if leaps {
+                        self.glide.to.a = a;
+                    } else {
+                        self.glide.now(|s| s.a = a);
+                    }
                 }
                 (self.steps, self.tour) = (None, None);
             }
@@ -2261,8 +3638,7 @@ impl Special {
         }
 
         // a map that sends everything to 0 says so, where everything is
-        if let Some(m) = drawn.filter(|m| size(*m) <= EXACT) {
-            let _ = m;
+        if drawn.is_some_and(|m| size(m) <= EXACT) {
             let n = self.drawn_name(shown.power);
             room.label(f, Tag("zero", 0), Vec3::ZERO, &format!("${n} = 0$: everything at $0$"), 14.0, pal::YELLOW, Vec2::new(-1.0, -1.0), 18.0, false);
         }
@@ -2294,29 +3670,42 @@ impl Special {
     }
 
     /// The lines along which a handle can move, for a kind that does not leave it free.
-    fn tracks(&self, f: &mut Frame, _a: DMat2) {
+    fn tracks(&self, f: &mut Frame) {
         let faint = |c: Color| c.a(0.4);
         let long = 3.4f32;
         let (pink, green) = if self.op == Op::Alone && (self.shown().power - 1.0).abs() < 1e-9 { (pal::PINK, pal::GREEN) } else { (pal::WHITE, pal::WHITE) };
         let batch = lines_for(f, Part::Factors);
+        let x_axis = (Vec3::new(-long, 0.0, 0.0), Vec3::new(long, 0.0, 0.0));
+        let y_axis = (Vec3::new(0.0, -long, 0.0), Vec3::new(0.0, long, 0.0));
+        let shares = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let ring = |centre: Vec2| -> Vec<Vec3> { (0..=48).map(|i| (centre + Vec2::from_angle(i as f32 / 48.0 * std::f32::consts::TAU) * 0.5).extend(0.0)).collect() };
         match self.kind {
-            Kind::Diagonal => {
-                batch.segment(Vec3::new(-long, 0.0, 0.0), Vec3::new(long, 0.0, 0.0), 2.0, faint(pink));
-                batch.segment(Vec3::new(0.0, -long, 0.0), Vec3::new(0.0, long, 0.0), 2.0, faint(green));
+            Kind::Diagonal | Kind::Scalar => {
+                batch.segment(x_axis.0, x_axis.1, 2.0, faint(pink));
+                batch.segment(y_axis.0, y_axis.1, 2.0, faint(green));
             }
-            Kind::Triangular => batch.segment(Vec3::new(-long, 0.0, 0.0), Vec3::new(long, 0.0, 0.0), 2.0, faint(pink)),
+            Kind::Upper => batch.segment(x_axis.0, x_axis.1, 2.0, faint(pink)),
+            Kind::Lower => batch.segment(y_axis.0, y_axis.1, 2.0, faint(green)),
             Kind::Skew => {
-                batch.segment(Vec3::new(0.0, -long, 0.0), Vec3::new(0.0, long, 0.0), 2.0, faint(pink));
-                batch.segment(Vec3::new(-long, 0.0, 0.0), Vec3::new(long, 0.0, 0.0), 2.0, faint(green));
+                batch.segment(y_axis.0, y_axis.1, 2.0, faint(pink));
+                batch.segment(x_axis.0, x_axis.1, 2.0, faint(green));
             }
-            Kind::Markov => batch.segment(Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), 3.0, faint(pal::TEXT)),
+            Kind::JordanBlock => {
+                batch.segment(x_axis.0, x_axis.1, 2.0, faint(pink));
+                batch.segment(Vec3::new(1.0, -long, 0.0), Vec3::new(1.0, long, 0.0), 2.0, faint(green));
+            }
+            Kind::Markov | Kind::Doubly => batch.segment(shares.0, shares.1, 3.0, faint(pal::TEXT)),
+            Kind::OrthProjection => {
+                batch.polyline(ring(Vec2::new(0.5, 0.0)), 2.0, faint(pink));
+                batch.polyline(ring(Vec2::new(0.0, 0.5)), 2.0, faint(green));
+            }
             _ => {}
         }
     }
 
     /// The heading at the top of the picture: what the map does, and in a second line
-    /// what follows for its eigenvalues (or, for two at once, what stays true). Returns
-    /// the box it takes.
+    /// what follows for its eigenvalues (or, for two at once, what stays true; for any
+    /// matrix, the kinds it is). Returns the box it takes.
     fn heading(&mut self, f: &mut Frame, lay: &Layout) -> (Vec2, Vec2) {
         let at = lay.picture.0 + Vec2::new(16.0, 12.0);
         let room = (lay.picture.1.x - lay.picture.0.x - 32.0).max(40.0);
@@ -2331,7 +3720,7 @@ impl Special {
             (15.0, 12.5)
         };
         // (on a phone, what follows for the eigenvalues is left to the panel below)
-        let second = if tiny || (lay.narrow && self.op == Op::Alone) { String::new() } else { second };
+        let second = if tiny || (lay.narrow && self.op == Op::Alone && self.kind != Kind::Any) { String::new() } else { second };
         let (one, w1) = broken(f, &first, room, big, &mut self.heading[0]);
         let (two, w2) = broken(f, &second, room, small, &mut self.heading[1]);
         let mut y = at.y;
@@ -2351,6 +3740,18 @@ impl Special {
     fn heading_text(&self, narrow: bool) -> (String, String) {
         let kind = self.kind;
         let to = self.glide.to;
+        if kind == Kind::Any {
+            let n = self.op.name();
+            return match self.tested() {
+                None => (r"$A$ has no inverse: $\det A = 0$".to_string(), String::new()),
+                Some(c) => {
+                    let lit = kinds_of(c);
+                    let count = lit.iter().filter(|v| **v).count();
+                    let of = if count == 1 { "1 kind".to_string() } else { format!("{count} kinds") };
+                    (format!("Any matrix: ${n}$ is of {of}"), capitalised(&named_list(&lit)))
+                }
+            };
+        }
         match self.op {
             Op::Alone => (format!("{}: {}", capitalised(kind.name()), does(kind, to.a)), format!("{}.", capitalised(kind.eigen_words()))),
             op => {
@@ -2401,96 +3802,153 @@ impl Special {
         Some((Vec2::new(left + 10.0, bottom - count as f32 * (size + 7.0) - 4.0), Vec2::new(left + 26.0 + widest, bottom + 6.0)))
     }
 
-    /// The screen panel: the kinds, the equation with both sides worked out, the
-    /// matrices, the complex plane with the eigenvalues, and buttons.
-    fn panel(&mut self, f: &mut Frame, p: &Panel) {
+    /// The screen panel: the families and their kinds, the equation with both sides
+    /// worked out, the matrices, what survives, the complex plane with the eigenvalues,
+    /// and buttons.
+    fn panel(&mut self, f: &mut Frame, p: &Panel, lit: &[bool; 30]) {
         hud_panel(f, p.min, p.max);
         let kind = self.kind;
         let to = self.glide.to;
         let tested = self.tested();
+        let mut clicked: Option<Kind> = None;
+        let mut family_clicked: Option<Option<Family>> = None;
 
-        // the kinds: the one chosen outlined, every kind the matrix is bright
-        let mut clicked = None;
-        for (k, rect) in KINDS.iter().zip(&p.chips) {
-            let member = tested.is_some_and(|c| is(*k, c));
-            if chip(f, *rect, k.chip(), *k == kind, member) {
+        // the tabs: any matrix, and the families, each with a light for each of its kinds
+        for (k, (rect, name)) in p.tabs.iter().zip(tab_names()).enumerate() {
+            let (on, pips): (bool, Vec<bool>) = if k == 0 {
+                (kind == Kind::Any, Vec::new())
+            } else {
+                let fam = FAMILIES[k - 1];
+                (fam == self.family, fam.kinds().iter().map(|kd| lit[index(*kd)]).collect())
+            };
+            if tab(f, *rect, name, on, k == 0 && kind == Kind::Any, &pips) {
+                family_clicked = Some(if k == 0 { None } else { Some(FAMILIES[k - 1]) });
+            }
+        }
+        if let Some(at) = p.heading {
+            let words = if kind == Kind::Any { format!("{}: lit, the kinds $A$ is", capitalised(self.family.heading())) } else { capitalised(self.family.heading()) };
+            f.text_px(at, words, 10.5, pal::DIM, Align2::LEFT_CENTER);
+        }
+        // the kinds of the family shown: the one chosen outlined, every kind the matrix is bright
+        for (k, rect) in self.family.kinds().iter().zip(&p.chips[FAMILIES.iter().position(|x| *x == self.family).unwrap_or(0)]) {
+            if chip(f, *rect, k.chip(), *k == kind, lit[index(*k)]) {
                 clicked = Some(*k);
             }
         }
         let n = self.op.name();
         let mid = p.title.y + TITLE_H * 0.5;
-        f.text_px(p.note, chips_note(self.op), NOTE_SIZE, pal::DIM, Align2::LEFT_CENTER);
 
         // the equation, the matrices, and the sides worked out
-        f.text_px(Vec2::new(p.title.x, mid), format!("{}: {}", kind.name(), kind.equation(n)), 14.0, pal::TEXT, Align2::LEFT_CENTER);
-        let mut cells: Vec<(String, DMat2, [Color; 2])> = vec![(String::from("$A$"), to.a, if self.op == Op::Alone { [pal::PINK, pal::GREEN] } else { [pal::TEXT, pal::TEXT] })];
-        if self.op.uses_b() {
-            cells.push(("$B$".into(), to.b, [pal::BLUE.mix(pal::TEXT, 0.25); 2]));
-        }
-        if let (true, Some(c)) = (self.op != Op::Alone, tested) {
-            cells.push((format!("${n}$"), c, [pal::PINK, pal::GREEN]));
-        }
-        if let Some(c) = tested {
-            for (name, m) in sides(kind, c, n) {
-                cells.push((name, m, [pal::TEXT, pal::TEXT]));
-            }
-        }
-        let s = p.text;
-        for (i, (name, m, colours)) in cells.iter().enumerate() {
-            let (row, col) = (i / p.per_row, i % p.per_row);
-            let at = p.cells + Vec2::new(col as f32 * p.step.x, row as f32 * p.step.y);
-            let w = matrix_w(s);
-            f.text_px(at + Vec2::new(w * 0.5, LABEL_H * 0.5), name.as_str(), 12.5, pal::TEXT, Align2::CENTER_CENTER);
-            let rows: Vec<Vec<(String, Color)>> = (0..2).map(|r| (0..2).map(|c| (cell(m.col(c)[r]), colours[c])).collect()).collect();
-            matrix(f, at + Vec2::new(0.0, LABEL_H), &rows, s);
-        }
-        // the verdict, under the matrices
-        let mut y = p.cells.y + cells.len().div_ceil(p.per_row) as f32 * p.step.y - 2.0;
+        let title = if kind == Kind::Any { format!("any matrix: ${n}$ is of {} kinds", lit.iter().filter(|v| **v).count()) } else { format!("{}: {}", kind.name(), kind.equation(n)) };
+        // (smaller where it is long; and where even that is too wide, the name alone: the
+        // equation is in the verdict under the matrices)
+        let room = p.max.x - p.title.x - 10.0;
+        let fits = |size: f32| f.text_size(&title, size).x <= room;
+        let (title, size) = if fits(14.0) {
+            (title, 14.0)
+        } else if fits(12.0) {
+            (title, 12.0)
+        } else {
+            (format!("{}:", kind.name()), 14.0)
+        };
+        f.text_px(Vec2::new(p.title.x, mid), title, size, pal::TEXT, Align2::LEFT_CENTER);
         let line = |f: &mut Frame, y: &mut f32, text: String, colour: Color| {
             if *y + LINE_H <= p.lines_end + 1.0 {
                 f.text_px(Vec2::new(p.cells.x, *y + LINE_H * 0.5), text, 12.0, colour, Align2::LEFT_CENTER);
             }
             *y += LINE_H;
         };
-        match tested {
-            Some(c) => {
-                let (first, holds, second) = verdict(kind, c, n);
+        if p.rows == 0 {
+            // (a panel cut short: the verdict's first line alone)
+            let mut y = p.cells.y;
+            if let Some(c) = tested {
+                let (first, holds, _) = verdict(kind, c, n);
                 line(f, &mut y, first, if holds { pal::TEXT } else { pal::RED });
-                if let Some(second) = second {
-                    line(f, &mut y, second, pal::DIM);
-                }
-                if self.show_x {
-                    let m = powered(c, to.power);
-                    let name = self.drawn_name(to.power);
-                    let dot = to.x.dot(m * to.x);
-                    let text = if name.is_empty() { format!(r"$x \cdot x = {}$ at the white point", num(dot, 2)) } else { format!(r"$x \cdot {}x = {}$ at the white point", paren(&name), num(dot, 2)) };
-                    line(f, &mut y, text, pal::DIM);
+            }
+        } else {
+            let mut cells: Vec<(String, DMat2, [Color; 2])> = vec![(String::from("$A$"), to.a, if self.op == Op::Alone { [pal::PINK, pal::GREEN] } else { [pal::TEXT, pal::TEXT] })];
+            if self.op.uses_b() {
+                cells.push(("$B$".into(), to.b, [pal::BLUE.mix(pal::TEXT, 0.25); 2]));
+            }
+            if let (true, Some(c)) = (self.op != Op::Alone, tested) {
+                cells.push((format!("${n}$"), c, [pal::PINK, pal::GREEN]));
+            }
+            if let Some(c) = tested {
+                for (name, m) in sides(kind, c, n) {
+                    cells.push((name, m, [pal::TEXT, pal::TEXT]));
                 }
             }
-            None => line(f, &mut y, r"$A$ has no inverse: $\det A = 0$".into(), pal::RED),
+            let s = p.text;
+            for (i, (name, m, colours)) in cells.iter().enumerate().take(p.rows * p.per_row) {
+                let (row, col) = (i / p.per_row, i % p.per_row);
+                let at = p.cells + Vec2::new(col as f32 * p.step.x, row as f32 * p.step.y);
+                let w = matrix_w(s);
+                f.text_px(at + Vec2::new(w * 0.5, LABEL_H * 0.5), name.as_str(), 12.5, pal::TEXT, Align2::CENTER_CENTER);
+                let rows: Vec<Vec<(String, Color)>> = (0..2).map(|r| (0..2).map(|c| (cell(m.col(c)[r]), colours[c])).collect()).collect();
+                matrix(f, at + Vec2::new(0.0, LABEL_H), &rows, s);
+            }
+            // the verdict, under the matrices
+            let mut y = p.cells.y + cells.len().min(p.rows * p.per_row).div_ceil(p.per_row) as f32 * p.step.y - 2.0;
+            match tested {
+                Some(c) => {
+                    let (first, holds, second) = verdict(kind, c, n);
+                    line(f, &mut y, first, if holds { pal::TEXT } else { pal::RED });
+                    if let Some(second) = second {
+                        line(f, &mut y, second, pal::DIM);
+                    }
+                    if self.show_x {
+                        let m = powered(c, to.power);
+                        let name = self.drawn_name(to.power);
+                        let dot = to.x.dot(m * to.x);
+                        let text = if name.is_empty() { format!(r"$x \cdot x = {}$ at the white point", num(dot, 2)) } else { format!(r"$x \cdot {}x = {}$ at the white point", paren(&name), num(dot, 2)) };
+                        line(f, &mut y, text, pal::DIM);
+                    }
+                }
+                None => line(f, &mut y, r"$A$ has no inverse: $\det A = 0$".into(), pal::RED),
+            }
         }
 
-        // whether a sum, a product and an inverse are of the kind too
+        // how many numbers are free, and whether a sum, a product, an inverse and a
+        // transpose are of the kind too
+        if let Some(at) = p.facts {
+            let text = if kind == Kind::Any { "free numbers: 4, every one".to_string() } else { format!("free numbers: {}", kind.free()) };
+            f.text_px(at + Vec2::new(0.0, LINE_H * 0.5), text, 11.5, pal::DIM, Align2::LEFT_CENTER);
+        }
         if let Some(at) = p.table {
-            f.text_px(at + Vec2::new(0.0, TABLE_LINE * 0.5), format!("of the kind too? (two {})", plural(kind)), 11.5, pal::TEXT, Align2::LEFT_CENTER);
-            for (k, (what, answer)) in ["$A + B$", "$AB$", "$A^{-1}$"].iter().zip(kind.closure_short()).enumerate() {
-                let y = at.y + (k + 1) as f32 * TABLE_LINE + TABLE_LINE * 0.5;
-                let colour = if matches!(answer, "always" | "where it exists") { pal::TEXT } else { pal::DIM };
-                f.text_px(Vec2::new(at.x + 8.0, y), *what, 11.5, pal::DIM, Align2::LEFT_CENTER);
-                f.text_px(Vec2::new(at.x + 62.0, y), answer, 11.5, colour, Align2::LEFT_CENTER);
+            if kind == Kind::Any {
+                f.text_px(at + Vec2::new(0.0, TABLE_LINE * 0.5), "of the kind too? (choose a kind to see)", 11.5, pal::DIM, Align2::LEFT_CENTER);
+            } else {
+                f.text_px(at + Vec2::new(0.0, TABLE_LINE * 0.5), format!("of the kind too? (two {})", kind.plural()), 11.5, pal::TEXT, Align2::LEFT_CENTER);
+                for (k, op) in [Op::Sum, Op::Product, Op::Inverse, Op::Transpose].into_iter().enumerate() {
+                    let y = at.y + (k + 1) as f32 * TABLE_LINE + TABLE_LINE * 0.5;
+                    let answer = kind.keeps(op);
+                    let colour = if matches!(answer, Keeps::Always | Keeps::WhereItExists) { pal::TEXT } else { pal::DIM };
+                    f.text_px(Vec2::new(at.x + 8.0, y), op.label().replace(r"$A$ alone", ""), 11.5, pal::DIM, Align2::LEFT_CENTER);
+                    f.text_px(Vec2::new(at.x + 62.0, y), answer.short(), 11.5, colour, Align2::LEFT_CENTER);
+                }
             }
         }
 
         // the complex plane
-        self.chart(f, p);
+        if let Some(place) = p.chart {
+            self.chart(f, &place);
+        }
 
         // the buttons
-        let label = if self.op.uses_b() { "another $A$" } else { "another of this kind" };
-        if plot::button(f, p.another, label, 12.0, false) {
-            self.another(false);
+        if let Some((a_rect, b_rect)) = p.another {
+            let label = if self.op.uses_b() { "another $A$" } else if kind == Kind::Any { "another matrix" } else { "another of this kind" };
+            if plot::button(f, a_rect, label, 12.0, false) {
+                self.another(false);
+            }
+            if self.op.uses_b() && plot::button(f, b_rect, "another $B$", 12.0, false) {
+                self.another(true);
+            }
         }
-        if self.op.uses_b() && plot::button(f, p.another_b, "another $B$", 12.0, false) {
-            self.another(true);
+        if let Some(choice) = family_clicked {
+            match choice {
+                None => self.choose(Kind::Any),
+                Some(fam) => self.family = fam,
+            }
         }
         if let Some(k) = clicked {
             self.choose(k);
@@ -2499,26 +3957,31 @@ impl Special {
 
     /// The complex plane: the region where the kind's eigenvalues can lie, and the
     /// eigenvalues as dots (of A and B as rings, for two at once).
-    fn chart(&self, f: &mut Frame, p: &Panel) {
-        let (min, max) = p.chart;
+    fn chart(&self, f: &mut Frame, place: &ChartPlace) {
+        let (min, max) = place.rect;
         let kind = self.kind;
         let shown = self.shown();
-        let title = if self.op == Op::Alone { "eigenvalues, in the complex plane".to_string() } else { format!("eigenvalues of ${}$ (dots), of $A$ and $B$ (rings)", self.op.name()) };
-        let title = if self.op == Op::Inverse { r"eigenvalues of $A^{-1}$ (dots), of $A$ (rings)".to_string() } else { title };
-        f.text_px(p.chart_title + Vec2::new(0.0, LINE_H * 0.5), title, 11.5, pal::TEXT, Align2::LEFT_CENTER);
+        let title = match self.op {
+            Op::Alone => "eigenvalues, in the complex plane".to_string(),
+            Op::Inverse | Op::Transpose => format!("eigenvalues of ${}$ (dots), of $A$ (rings)", self.op.name()),
+            _ => format!("eigenvalues of ${}$ (dots), of $A$ and $B$ (rings)", self.op.name()),
+        };
+        f.text_px(place.title + Vec2::new(0.0, LINE_H * 0.5), title, 11.5, pal::TEXT, Align2::LEFT_CENTER);
         hud_rect(f, min, max, Color::hex(0x10172A));
         // one unit the same across and up, the middle at 0
         let (w, h) = (max.x - min.x, max.y - min.y);
         let unit = (w / 5.6).min(h / 3.4).max(1.0) as f64;
         let (hx, hy) = (w as f64 * 0.5 / unit, h as f64 * 0.5 / unit);
-        let plot = Plot::new(p.chart, [-hx, hx], [-hy, hy]);
+        let plot = Plot::new(place.rect, [-hx, hx], [-hy, hy]);
         // the axes, the unit circle, and the whole numbers along them
         plot::line_of(f, plot::AXES, plot.at(-hx, 0.0), plot.at(hx, 0.0), 1.0, pal::DIM.a(0.7));
         plot::line_of(f, plot::AXES, plot.at(0.0, -hy), plot.at(0.0, hy), 1.0, pal::DIM.a(0.7));
-        let ring: Vec<Vec2> = (0..=72).map(|i| {
-            let t = i as f64 / 72.0 * std::f64::consts::TAU;
-            plot.at(t.cos(), t.sin())
-        }).collect();
+        let ring: Vec<Vec2> = (0..=72)
+            .map(|i| {
+                let t = i as f64 / 72.0 * std::f64::consts::TAU;
+                plot.at(t.cos(), t.sin())
+            })
+            .collect();
         for pair in ring.windows(2).step_by(2) {
             plot::line_of(f, plot::AXES, pair[0], pair[1], 1.0, pal::DIM.a(0.45));
         }
@@ -2538,14 +4001,39 @@ impl Special {
                 f.text_px(plot.at(0.0, x) + Vec2::new(5.0, 0.0), name, 10.0, pal::DIM, Align2::LEFT_CENTER);
             }
         }
+        let tested = combine(self.op, shown.a, shown.b);
         // where this kind's eigenvalues can lie
         let bright = Color::hex(0xC8D4F0).a(0.42);
         let band = 5.0;
-        match kind.region() {
-            Region::Real => plot::line_of(f, plot::MARKS, plot.at(-hx, 0.0), plot.at(hx, 0.0), band, bright),
-            Region::Positive => plot::line_of(f, plot::MARKS, plot.at(0.0, 0.0) + Vec2::new(4.0, 0.0), plot.at(hx, 0.0), band, bright),
+        let region = kind.region();
+        match region {
+            Region::Real | Region::Twice | Region::Perron | Region::ZeroAndReal => {
+                plot::line_of(f, plot::MARKS, plot.at(-hx, 0.0), plot.at(hx, 0.0), band, bright);
+                if region == Region::ZeroAndReal {
+                    plot::disc(f, plot.at(0.0, 0.0), 18.0, bright);
+                }
+            }
+            Region::Positive | Region::NonNegative => plot::line_of(f, plot::MARKS, plot.at(0.0, 0.0) + Vec2::new(if region == Region::Positive { 4.0 } else { 0.0 }, 0.0), plot.at(hx, 0.0), band, bright),
+            Region::Sides => {
+                plot::line_of(f, plot::MARKS, plot.at(-hx, 0.0), plot.at(0.0, 0.0) - Vec2::new(4.0, 0.0), band, bright);
+                plot::line_of(f, plot::MARKS, plot.at(0.0, 0.0) + Vec2::new(4.0, 0.0), plot.at(hx, 0.0), band, bright);
+            }
             Region::Imaginary => plot::line_of(f, plot::MARKS, plot.at(0.0, -hy), plot.at(0.0, hy), band, bright),
             Region::Circle => plot::path_of(f, plot::MARKS, &ring, band, bright),
+            Region::DetOne => {
+                plot::path_of(f, plot::MARKS, &ring, band, bright);
+                plot::line_of(f, plot::MARKS, plot.at(-hx, 0.0), plot.at(0.0, 0.0) - Vec2::new(4.0, 0.0), band, bright);
+                plot::line_of(f, plot::MARKS, plot.at(0.0, 0.0) + Vec2::new(4.0, 0.0), plot.at(hx, 0.0), band, bright);
+            }
+            Region::Roots => {
+                // the n-th roots of 1 for this matrix's n (the circle faintly)
+                plot::path_of(f, plot::MARKS, &ring, 1.5, bright.a(0.25));
+                let n = tested.map_or(ROOT_MAX, |c| order(c).0.max(1));
+                for k in 0..n {
+                    let t = std::f64::consts::TAU * k as f64 / n as f64;
+                    plot::disc(f, plot.at(t.cos(), t.sin()), 12.0, bright);
+                }
+            }
             Region::Points(points) => {
                 for x in points {
                     plot::disc(f, plot.at(*x, 0.0), 18.0, bright);
@@ -2555,14 +4043,41 @@ impl Special {
                 plot::line_of(f, plot::MARKS, plot.at(-1.0, 0.0), plot.at(1.0, 0.0), band, bright);
                 plot::disc(f, plot.at(1.0, 0.0), 18.0, bright);
             }
-            Region::Anywhere => plot::fill(f, p.chart, bright.a(0.1)),
+            Region::Discs => {}
+            Region::Anywhere => plot::fill(f, place.rect, bright.a(0.1)),
+        }
+        // the Gershgorin discs: the region itself for a dominant kind, or on request
+        if let Some(c) = tested.filter(|_| self.discs || region == Region::Discs) {
+            for (k, (centre, radius)) in discs(c).into_iter().enumerate() {
+                let r = radius.min(1e3);
+                // (the part inside the chart: a point outside breaks the line)
+                let outline: Vec<Vec2> = (0..=64)
+                    .map(|i| {
+                        let t = i as f64 / 64.0 * std::f64::consts::TAU;
+                        let q = plot.at(centre + r * t.cos(), r * t.sin());
+                        if within_chart(q, place.rect) {
+                            q
+                        } else {
+                            Vec2::NAN
+                        }
+                    })
+                    .collect();
+                let colour = if region == Region::Discs { bright } else { pal::CYAN.a(0.55) };
+                plot::path_of(f, DISCS, &outline, if region == Region::Discs { 3.0 } else { 1.6 }, colour);
+                // (named at its top, where that is in the chart)
+                let label = plot.at(centre, r) + Vec2::new(0.0, -2.0);
+                if within_chart(label - Vec2::new(0.0, 12.0), place.rect) && within_chart(label, place.rect) {
+                    f.text_px(label, format!("row {}", k + 1), 9.5, if region == Region::Discs { pal::TEXT.a(0.8) } else { pal::CYAN.a(0.85) }, Align2::CENTER_BOTTOM);
+                }
+            }
         }
         // the region's name, in a corner
-        f.text_px(Vec2::new(max.x - 5.0, min.y + 4.0), kind.region().name(), 10.5, pal::TEXT.a(0.8), Align2::RIGHT_TOP);
+        let corner = if self.discs && region != Region::Discs { format!("{}; cyan: the Gershgorin discs", region.name()) } else { region.name().to_string() };
+        f.text_px(Vec2::new(max.x - 5.0, min.y + 4.0), corner, 10.5, pal::TEXT.a(0.8), Align2::RIGHT_TOP);
         // the eigenvalues: of A and B as rings, of the matrix under test as dots
         let at = |(re, im): (f64, f64)| {
             let q = plot.at(re, im);
-            let inside = within_chart(q, p.chart);
+            let inside = within_chart(q, place.rect);
             (q.max(min + Vec2::splat(3.0)).min(max - Vec2::splat(3.0)), inside)
         };
         if self.op != Op::Alone {
@@ -2577,24 +4092,157 @@ impl Special {
                 }
             }
         }
-        match combine(self.op, shown.a, shown.b) {
+        match tested {
             Some(c) => {
                 let e = eigen(c);
                 let tol = 1e-6 * size(c).max(1.0);
                 for (l, colour) in eigenvalues(e).into_iter().zip([pal::ORANGE, pal::PURPLE]).rev() {
                     let (q, inside) = at(l);
                     // (one where this kind's cannot be is ringed in red)
-                    if !kind.region().holds(l, tol) {
+                    if !region.holds(l, tol, c) {
                         hud_circle(f, q, 9.0, 1.6, pal::RED);
                     }
                     plot::disc(f, q, if inside { 10.0 } else { 7.0 }, colour);
                 }
-                let tested = self.tested().map(eigen).unwrap_or(e);
-                f.text_px(p.eigen_line + Vec2::new(0.0, LINE_H * 0.5), eigen_text(tested), 12.5, pal::TEXT, Align2::LEFT_CENTER);
+                let shown_e = self.tested().map(eigen).unwrap_or(e);
+                f.text_px(place.line + Vec2::new(0.0, LINE_H * 0.5), eigen_text(shown_e), 12.5, pal::TEXT, Align2::LEFT_CENTER);
             }
-            None => f.text_px(p.eigen_line + Vec2::new(0.0, LINE_H * 0.5), "no inverse, so no eigenvalues to show", 12.0, pal::DIM, Align2::LEFT_CENTER),
+            None => f.text_px(place.line + Vec2::new(0.0, LINE_H * 0.5), "no inverse, so no eigenvalues to show", 12.0, pal::DIM, Align2::LEFT_CENTER),
         }
     }
+
+    /// The map of the zoo in the rectangle `rect`: the kinds as boxes, each joined by a
+    /// line to the kinds just above it that contain it; lit, the kinds the matrix is.
+    /// A click on a kind chooses it.
+    fn map(&mut self, f: &mut Frame, rect: (Vec2, Vec2), lit: &[bool; 30], alone: bool) {
+        let (min, max) = rect;
+        hud_panel(f, min, max);
+        let narrow = max.x - min.x < 520.0;
+        // the title, and what the lines mean
+        let title = "The map of the zoo";
+        f.text_px(min + Vec2::new(12.0, 14.0), title, 13.5, pal::TEXT, Align2::LEFT_CENTER);
+        let count = lit.iter().filter(|v| **v).count();
+        let name = if self.op == Op::Alone { "A".to_string() } else { self.op.name().to_string() };
+        let lit_words = match count {
+            0 => format!("${name}$ is none of them"),
+            1 => format!("Lit: the one kind ${name}$ is"),
+            _ => format!("Lit: the {count} kinds ${name}$ is"),
+        };
+        let says = format!(r"a line runs up from each kind to the larger kinds just above it that contain it. {lit_words}. Click a kind to choose it.");
+        let room = (max.x - min.x - 24.0 - if alone || !narrow { 130.0 } else { 110.0 }).max(80.0);
+        let (lines, _) = broken(f, &says, room, 10.5, &mut self.map_title);
+        let mut y = min.y + 32.0;
+        for l in &lines {
+            f.text_px(Vec2::new(min.x + 12.0, y), l.as_str(), 10.5, pal::DIM, Align2::LEFT_CENTER);
+            y += 14.0;
+        }
+        let tall = (max.y - min.y) > (max.x - min.x) * 1.1;
+        let area = (Vec2::new(min.x + 8.0, y + 2.0), max - Vec2::new(8.0, 8.0));
+        let size = if narrow { 9.5 } else { 10.5 };
+        let boxes: Vec<(Vec2, Vec2)> = KINDS.iter().map(|k| map_box(*k, area, tall, size)).collect();
+        let pointer = plot::pointer(f);
+        let hovered = pointer.and_then(|q| boxes.iter().position(|b| plot::within(q, *b, 2.0)));
+        // the lines, cut where they meet the boxes
+        for (small, large) in EDGES {
+            let (i, j) = (index(small), index(large));
+            let (a, b) = (boxes[i], boxes[j]);
+            let (p, q) = ((a.0 + a.1) * 0.5, (b.0 + b.1) * 0.5);
+            let (p, q) = (leave_box(p, q, a), leave_box(q, p, b));
+            let both = lit[i] && lit[j];
+            let near = hovered.is_some_and(|h| h == i || h == j);
+            let (width, colour) = if near {
+                (1.8, pal::LINK.a(0.9))
+            } else if both {
+                (1.8, pal::TEXT.a(0.85))
+            } else {
+                (1.0, pal::DIM.a(0.4))
+            };
+            plot::line_of(f, MAP_EDGES, p, q, width, colour);
+        }
+        // the kinds
+        let mut clicked = None;
+        for (k, kind) in KINDS.iter().enumerate() {
+            let (lo, hi) = boxes[k];
+            let on = lit[k];
+            let chosen = *kind == self.kind;
+            let over = hovered == Some(k);
+            let backing = match (on, over) {
+                (true, _) => Color::hex(0x2B3D66),
+                (false, true) => Color::hex(0x222B44),
+                _ => Color::hex(0x141A28),
+            };
+            hud_rect(f, lo, hi, backing);
+            let edge = [lo, Vec2::new(hi.x, lo.y), hi, Vec2::new(lo.x, hi.y), lo];
+            let (width, colour) = if chosen {
+                (1.8, pal::LINK)
+            } else if over {
+                (1.2, pal::LINK.a(0.7))
+            } else if on {
+                (1.0, pal::TEXT.a(0.6))
+            } else {
+                (1.0, pal::DIM.a(0.35))
+            };
+            plot::path_of(f, MAP_BOXES, &edge, width, colour);
+            let text = if on { pal::WHITE } else { pal::DIM.a(0.85) };
+            let [one, two] = kind.map_name();
+            let middle = (lo + hi) * 0.5;
+            if two.is_empty() {
+                f.text_px(middle, one, size, text, Align2::CENTER_CENTER);
+            } else {
+                let half = (size + 2.0) * 0.5;
+                f.text_px(middle - Vec2::new(0.0, half), one, size, text, Align2::CENTER_CENTER);
+                f.text_px(middle + Vec2::new(0.0, half), two, size, text, Align2::CENTER_CENTER);
+            }
+            if over {
+                f.handles.claim_clicks();
+                f.handles.capture();
+                if f.ptr.clicked {
+                    f.ptr.clicked = false;
+                    clicked = Some(*kind);
+                }
+            }
+        }
+        if let Some(k) = clicked {
+            self.choose(k);
+        }
+    }
+}
+
+/// The batches of lines of the map's lines, of its boxes' outlines, and of the
+/// Gershgorin discs.
+const MAP_EDGES: u8 = plot::OWN;
+const MAP_BOXES: u8 = plot::OWN + 1;
+const DISCS: u8 = plot::OWN + 2;
+
+/// A kind's place in `KINDS`.
+fn index(kind: Kind) -> usize {
+    KINDS.iter().position(|k| *k == kind).unwrap_or(0)
+}
+
+/// Where the segment from `p` (inside `rect`) to `q` leaves the rectangle.
+fn leave_box(p: Vec2, q: Vec2, (lo, hi): (Vec2, Vec2)) -> Vec2 {
+    let d = q - p;
+    let mut t = 1.0f32;
+    for (v, dv, a, b) in [(p.x, d.x, lo.x, hi.x), (p.y, d.y, lo.y, hi.y)] {
+        if dv > 1e-6 {
+            t = t.min((b - v) / dv);
+        } else if dv < -1e-6 {
+            t = t.min((a - v) / dv);
+        }
+    }
+    p + d * t.max(0.0).min(1.0)
+}
+
+/// A kind's box on the map drawn in `area`, its names at the size `size`.
+fn map_box(kind: Kind, (lo, hi): (Vec2, Vec2), tall: bool, size: f32) -> (Vec2, Vec2) {
+    let (x, y) = map_place(kind, tall);
+    let (w, h) = if tall { MAP_TALL_BOX } else { MAP_WIDE_BOX };
+    let centre = lo + (hi - lo) * Vec2::new(x / w, y / h);
+    let [one, two] = kind.map_name();
+    let width = text_width(one, size).max(text_width(two, size)) + 12.0;
+    let height = if two.is_empty() { size + 9.0 } else { 2.0 * size + 11.0 };
+    let half = Vec2::new(width, height) * 0.5;
+    (centre - half, centre + half)
 }
 
 fn within_chart(q: Vec2, (min, max): (Vec2, Vec2)) -> bool {
@@ -2648,9 +4296,10 @@ fn matrix(f: &mut Frame, top_left: Vec2, rows: &[Vec<(String, Color)>], size: f3
 /// matrix is of that kind. Returns true in the frame it is clicked.
 fn chip(f: &mut Frame, (min, max): (Vec2, Vec2), text: &str, on: bool, member: bool) -> bool {
     let over = plot::pointer(f).is_some_and(|q| plot::within(q, (min, max), 0.0));
-    let backing = match (on, over) {
-        (true, _) => Color::hex(0x2B3D66),
-        (false, true) => Color::hex(0x2A3350),
+    let backing = match (on, member, over) {
+        (true, _, _) => Color::hex(0x2B3D66),
+        (false, _, true) => Color::hex(0x2A3350),
+        (false, true, false) => Color::hex(0x1E2840),
         _ => Color::hex(0x161C2B),
     };
     hud_rect(f, min, max, backing);
@@ -2658,6 +4307,35 @@ fn chip(f: &mut Frame, (min, max): (Vec2, Vec2), text: &str, on: bool, member: b
     plot::path_of(f, plot::BUTTONS, &edge, if on { 1.4 } else { 1.0 }, pal::LINK.a(if on { 0.95 } else if over { 0.7 } else { 0.3 }));
     let colour = if member { pal::WHITE } else { pal::DIM.a(0.8) };
     f.text_px((min + max) * 0.5, text, CHIP_SIZE, colour, Align2::CENTER_CENTER);
+    clicked_in(f, over)
+}
+
+/// One of the tabs: a family (with a light under its name for each of its kinds, lit if
+/// the matrix is of that kind), or "any matrix". Returns true in the frame it is clicked.
+fn tab(f: &mut Frame, (min, max): (Vec2, Vec2), text: &str, on: bool, free: bool, pips: &[bool]) -> bool {
+    let over = plot::pointer(f).is_some_and(|q| plot::within(q, (min, max), 0.0));
+    let backing = match (on, over) {
+        (true, _) => Color::hex(0x2B3D66),
+        (false, true) => Color::hex(0x2A3350),
+        _ => Color::hex(0x1A2133),
+    };
+    hud_rect(f, min, max, backing);
+    let edge = [min, Vec2::new(max.x, min.y), max, Vec2::new(min.x, max.y), min];
+    plot::path_of(f, plot::BUTTONS, &edge, if on { 1.4 } else { 1.0 }, pal::LINK.a(if on { 0.95 } else if over { 0.7 } else { 0.35 }));
+    let mid = (min + max) * 0.5;
+    let text_at = if pips.is_empty() { mid } else { Vec2::new(mid.x, min.y + 9.0) };
+    f.text_px(text_at, text, TAB_SIZE, if on || free { pal::WHITE } else { pal::TEXT.a(0.85) }, Align2::CENTER_CENTER);
+    let gap = 6.0;
+    let first = mid.x - gap * (pips.len() as f32 - 1.0) * 0.5;
+    for (k, on) in pips.iter().enumerate() {
+        let at = Vec2::new(first + gap * k as f32, max.y - 6.0);
+        plot::disc(f, at, if *on { 5.0 } else { 3.5 }, if *on { pal::WHITE } else { pal::DIM.a(0.5) });
+    }
+    clicked_in(f, over)
+}
+
+/// A click on a button under the pointer: taken from the view, and reported once.
+fn clicked_in(f: &mut Frame, over: bool) -> bool {
     if over {
         f.handles.claim_clicks();
         f.handles.capture();
@@ -2677,10 +4355,37 @@ mod tests {
         (m - n).to_cols_array().iter().all(|v| v.abs() <= tol)
     }
 
-    /// A kind's own two matrices and `n` more at random.
+    /// A few matrices of a kind that random draws seldom or never give: the edges of
+    /// the kind (0, I, −I, the swap, a matrix on the boundary of an inequality).
+    fn specials(kind: Kind) -> Vec<DMat2> {
+        let id = DMat2::IDENTITY;
+        let candidates = [
+            DMat2::ZERO,
+            id,
+            -id,
+            SWAP,
+            -SWAP,
+            J,
+            rows([1.0, 0.0, 0.0, 0.0]),
+            rows([0.0, 0.0, 0.0, 1.0]),
+            rows([0.0, 1.0, 0.0, 0.0]),
+            rows([1.0, 1.0, 0.0, 1.0]),
+            rows([2.0, 0.0, 0.0, 0.5]),
+            rows([0.5, 0.5, 0.5, 0.5]),
+            rows([1.0, -1.0, 0.0, 0.0]),
+            rows([0.0, -1.0, 1.0, -1.0]),
+            rows([1.0, -1.0, 1.0, 0.0]),
+            rows([0.0, 0.0, 1.0, 1.0]),
+            DMat2::from_angle(std::f64::consts::TAU / 5.0),
+        ];
+        candidates.into_iter().filter(|m| is(kind, *m)).collect()
+    }
+
+    /// A kind's own two matrices, its special ones, and `n` more at random.
     fn members(kind: Kind, n: usize, seed: u64) -> Vec<DMat2> {
         let mut rng = Rng::new(seed);
         let mut out = vec![kind.default_a(), kind.default_b()];
+        out.extend(specials(kind));
         out.extend((0..n).map(|_| random(kind, &mut rng)));
         out
     }
@@ -2694,7 +4399,7 @@ mod tests {
     fn run(k: usize) -> Special {
         let mut scene = Special::new();
         scene.set_up(k);
-        for _ in 0..60 * 30 {
+        for _ in 0..60 * 40 {
             scene.advance(1.0 / 60.0, 1.0 / 60.0);
             if !scene.animated() {
                 break;
@@ -2709,17 +4414,21 @@ mod tests {
         (0..corners.len()).map(|i| corners[i].perp_dot(corners[(i + 1) % corners.len()])).sum::<f64>() * 0.5
     }
 
+    fn lit_names(m: DMat2) -> Vec<Kind> {
+        KINDS.iter().copied().filter(|k| is(*k, m)).collect()
+    }
+
     /// Every matrix a kind starts with, makes at random, or is dragged to is of that
     /// kind, finite, and within the limits, wherever the column is dragged: on the axes,
     /// at 0, beyond the limits, nowhere at all.
     #[test]
     fn every_kind_keeps_its_matrices_in_it() {
         let mut rng = Rng::new(5);
-        for kind in KINDS {
+        for kind in KINDS.into_iter().chain([Kind::Any]) {
             assert!(is(kind, kind.default_a()) && is(kind, kind.default_b()), "{kind:?}");
             for a in members(kind, 200, 11) {
                 assert!(is(kind, a) && size(a) <= ENTRY_MAX, "{kind:?}: {a:?}");
-                let awkward = [DVec2::ZERO, DVec2::X, DVec2::Y, DVec2::new(0.4, 0.0), DVec2::new(0.0, -0.7), DVec2::new(-2.0, 1e-12), DVec2::new(1.0, 1e-300), DVec2::splat(9.0), DVec2::splat(-9.0), DVec2::NAN, DVec2::new(f64::INFINITY, 1.0)];
+                let awkward = [DVec2::ZERO, DVec2::X, DVec2::Y, DVec2::new(0.4, 0.0), DVec2::new(0.0, -0.7), DVec2::new(-2.0, 1e-12), DVec2::new(1.0, 1e-300), DVec2::new(0.5, 0.0), DVec2::splat(9.0), DVec2::splat(-9.0), DVec2::NAN, DVec2::new(f64::INFINITY, 1.0)];
                 let random = (0..20).map(|_| DVec2::new(rng.range(-4.0, 4.0) as f64, rng.range(-4.0, 4.0) as f64));
                 for p in awkward.into_iter().chain(random) {
                     for j in 0..2 {
@@ -2741,26 +4450,36 @@ mod tests {
             let p = DVec2::new(rng.range(-2.8, 2.8) as f64, rng.range(-2.8, 2.8) as f64);
             let sym = Kind::Symmetric.default_a();
             assert!(fit(Kind::Symmetric, sym, 0, p).x_axis == p && fit(Kind::Symmetric, sym, 1, p).y_axis == p);
-            let tri = Kind::Triangular.default_a();
-            assert!(fit(Kind::Triangular, tri, 1, p).y_axis == p && fit(Kind::Triangular, tri, 0, p).x_axis == DVec2::new(p.x, 0.0));
+            let tri = Kind::Upper.default_a();
+            assert!(fit(Kind::Upper, tri, 1, p).y_axis == p && fit(Kind::Upper, tri, 0, p).x_axis == DVec2::new(p.x, 0.0));
+            let low = Kind::Lower.default_a();
+            assert!(fit(Kind::Lower, low, 0, p).x_axis == p && fit(Kind::Lower, low, 1, p).y_axis == DVec2::new(0.0, p.y));
             let diag = Kind::Diagonal.default_a();
             assert!(fit(Kind::Diagonal, diag, 0, p).x_axis == DVec2::new(p.x, 0.0) && fit(Kind::Diagonal, diag, 1, p).y_axis == DVec2::new(0.0, p.y));
             assert!(fit(Kind::Skew, Kind::Skew.default_a(), 0, p).x_axis == DVec2::new(0.0, p.y));
-            for a in [Kind::Orthogonal.default_a(), Kind::Orthogonal.default_b()] {
+            assert!(fit(Kind::ScaledRotation, Kind::ScaledRotation.default_a(), 0, p).x_axis == p && fit(Kind::ScaledRotation, Kind::ScaledRotation.default_a(), 1, p).y_axis == p);
+            assert!(fit(Kind::Any, Kind::Any.default_a(), 1, p).y_axis == p && fit(Kind::Companion, Kind::Companion.default_a(), 1, p).y_axis == p);
+            for (kind, a) in [(Kind::Orthogonal, Kind::Orthogonal.default_a()), (Kind::Orthogonal, Kind::Orthogonal.default_b()), (Kind::Rotation, Kind::Rotation.default_a()), (Kind::Reflection, Kind::Reflection.default_a())] {
                 for j in 0..2 {
-                    let m = fit(Kind::Orthogonal, a, j, p);
+                    let m = fit(kind, a, j, p);
                     assert!((m.col(j) - p.normalize()).length() < 1e-12 && m.determinant().signum() == a.determinant().signum());
                 }
             }
             // the nearest point of the segment of shares
-            let m = fit(Kind::Markov, Kind::Markov.default_a(), 0, p);
-            let c = m.x_axis;
-            assert!(c.x >= 0.0 && c.y >= 0.0 && (c.x + c.y - 1.0).abs() < 1e-12);
-            for t in 0..=20 {
-                let q = DVec2::new(t as f64 / 20.0, 1.0 - t as f64 / 20.0);
-                assert!((p - c).length() <= (p - q).length() + 1e-12);
+            for kind in [Kind::Markov, Kind::Doubly] {
+                let m = fit(kind, kind.default_a(), 0, p);
+                let c = m.x_axis;
+                assert!(c.x >= 0.0 && c.y >= 0.0 && (c.x + c.y - 1.0).abs() < 1e-12);
+                for t in 0..=20 {
+                    let q = DVec2::new(t as f64 / 20.0, 1.0 - t as f64 / 20.0);
+                    assert!((p - c).length() <= (p - q).length() + 1e-12);
+                }
             }
-            // where the rank-one kinds and the positive definite ones are free to go
+            // the nearest point of the circle an orthogonal projection's column lies on
+            let c = fit(Kind::OrthProjection, Kind::OrthProjection.default_a(), 0, p).x_axis;
+            let centre = DVec2::new(0.5, 0.0);
+            assert!(((c - centre).length() - 0.5).abs() < 1e-12 && ((p - centre).normalize() - (c - centre).normalize()).length() < 1e-9);
+            // where the kinds with room to move are free to go
             let pd = Kind::PosDef.default_a();
             if p.x >= 0.1 && p.y.abs() <= ((p.x - LEAST_POSITIVE) * (ENTRY_MAX - LEAST_POSITIVE)).sqrt() {
                 assert!(fit(Kind::PosDef, pd, 0, p).x_axis == p);
@@ -2775,9 +4494,24 @@ mod tests {
             if q.x.abs() <= ENTRY_MAX - 1.0 && q.y.abs() <= ENTRY_MAX - 1.0 && q.y.abs() >= q.x * q.x / (ENTRY_MAX - 1.0) {
                 assert!((fit(Kind::Shear, Kind::Shear.default_a(), 0, p).x_axis - p).length() < 1e-12);
             }
+            if p.length() >= LEAST_COLUMN {
+                for kind in [Kind::DetOne, Kind::Singular, Kind::RankOne] {
+                    assert!(fit(kind, kind.default_a(), 0, p).x_axis == p, "{kind:?}");
+                }
+            }
+            if p.min_element() >= MARGIN {
+                assert!(fit(Kind::Positive, Kind::Positive.default_a(), 0, p).x_axis == p);
+            }
+            if p.x.abs() >= MARGIN && p.y.abs() <= ENTRY_MAX - MARGIN {
+                assert!(fit(Kind::Dominant, Kind::Dominant.default_a(), 0, p).x_axis == p);
+            }
+            if p.y.abs() >= (2.0 * MARGIN).sqrt() {
+                assert!(fit(Kind::Indefinite, Kind::Indefinite.default_a(), 0, p).x_axis == p);
+            }
         }
-        // a drag round a loop clear of the axes, in small steps: no jumps
-        for kind in KINDS {
+        // a drag round a loop clear of the axes, in small steps: no jumps (a
+        // permutation has nowhere between its two matrices, and leaps)
+        for kind in KINDS.into_iter().filter(|k| *k != Kind::Permutation) {
             for j in 0..2 {
                 let mut a = kind.default_a();
                 for i in 0..=2000 {
@@ -2797,40 +4531,50 @@ mod tests {
     #[test]
     fn the_eigenvalues_lie_where_each_kind_allows() {
         let mut rng = Rng::new(21);
+        let mut points = Rng::new(22);
+        let mut point = || DVec2::new(points.range(-3.0, 3.0) as f64, points.range(-3.0, 3.0) as f64);
         for kind in KINDS {
             for a in members(kind, 300, 31) {
                 let tol = 1e-9 * size(a).max(1.0);
                 let e = eigen(a);
-                for l in eigenvalues(e) {
-                    assert!(kind.region().holds(l, tol), "{kind:?}: {a:?} has the eigenvalue {l:?}, not on {}", kind.region().name());
+                let [l1, l2] = eigenvalues(e);
+                for l in [l1, l2] {
+                    assert!(kind.region().holds(l, tol, a), "{kind:?}: {a:?} has the eigenvalue {l:?}, not in {}", kind.region().name());
                 }
-                let [a11, _, a21, a22] = entries(a);
+                let [a11, a12, a21, a22] = entries(a);
+                let diagonal_ones = || (l1.0 - a11).abs() + (l2.0 - a22).abs() < 1e-12 || (l1.0 - a22).abs() + (l2.0 - a11).abs() < 1e-12;
                 match kind {
-                    Kind::Diagonal | Kind::Triangular => {
-                        let [(l1, _), (l2, _)] = eigenvalues(e);
-                        assert!(a21 == 0.0 && ((l1 - a11).abs() + (l2 - a22).abs() < 1e-12 || (l1 - a22).abs() + (l2 - a11).abs() < 1e-12), "{a:?}");
-                    }
-                    Kind::Symmetric | Kind::PosDef => match e {
-                        Eigen::Real { lines: Lines::Two(v1, v2), .. } => assert!(v1.dot(v2).abs() < 1e-9, "{a:?}"),
-                        Eigen::Real { lines: Lines::Every, .. } => {}
+                    Kind::Scalar => assert!(matches!(e, Eigen::Real { lines: Lines::Every, .. }) && (0..10).all(|_| commute(a, rows([0; 4].map(|_| rng.range(-2.0, 2.0) as f64))))),
+                    Kind::Diagonal | Kind::Upper | Kind::Lower => assert!(l1.1 == 0.0 && diagonal_ones(), "{a:?}"),
+                    Kind::JordanBlock => assert!(matches!(e, Eigen::Real { l1, lines: Lines::One(v), .. } if l1 == a11 && v.y.abs() < 1e-12), "{a:?} {e:?}"),
+                    Kind::Symmetric | Kind::PosDef | Kind::PosSemidef | Kind::Indefinite | Kind::OrthProjection => match e {
+                        Eigen::Real { lines: Lines::Two(v1, v2), l1, l2 } => {
+                            assert!(v1.dot(v2).abs() < 1e-9, "{a:?}");
+                            if kind == Kind::Indefinite {
+                                assert!(l1 > 0.0 && l2 < 0.0);
+                            }
+                        }
+                        Eigen::Real { lines: Lines::Every, .. } => assert!(kind != Kind::Indefinite),
                         _ => panic!("{kind:?}: {a:?} {e:?}"),
                     },
                     Kind::Skew => {
                         for _ in 0..10 {
-                            let x = DVec2::new(rng.range(-3.0, 3.0) as f64, rng.range(-3.0, 3.0) as f64);
+                            let x = point();
                             assert!(x.dot(a * x).abs() < 1e-12, "{a:?}");
                         }
                         assert!(close(a, J * a21, 0.0), "in the plane a skew matrix is wJ: {a:?}");
                     }
-                    Kind::Orthogonal => {
+                    Kind::ScaledRotation => assert!(e == Eigen::Complex { re: a11, im: a21.abs() } || (a21 == 0.0 && l1 == (a11, 0.0)), "{a:?} {e:?}"),
+                    Kind::Orthogonal | Kind::Rotation | Kind::Reflection => {
                         if a.determinant() < 0.0 {
                             assert!(matches!(e, Eigen::Real { l1, l2, lines: Lines::Two(v1, v2) } if (l1 - 1.0).abs() < 1e-12 && (l2 + 1.0).abs() < 1e-12 && v1.dot(v2).abs() < 1e-9), "{a:?} {e:?}");
                         }
                         for _ in 0..10 {
-                            let x = DVec2::new(rng.range(-3.0, 3.0) as f64, rng.range(-3.0, 3.0) as f64);
+                            let x = point();
                             assert!(((a * x).length() - x.length()).abs() < 1e-12);
                         }
                     }
+                    Kind::DetOne => assert!((l1.0 * l2.0 - l1.1 * l2.1 - 1.0).abs() < 1e-9),
                     Kind::Normal => match e {
                         Eigen::Real { lines: Lines::Two(v1, v2), .. } => assert!(v1.dot(v2).abs() < 1e-9, "{a:?}"),
                         Eigen::Real { lines: Lines::Every, .. } => {}
@@ -2838,29 +4582,66 @@ mod tests {
                         // the complex eigenvectors (a₁₂, λ − a₁₁) and their conjugates are
                         // at right angles: v₁² + v₂² = 0 (as complex numbers)
                         Eigen::Complex { re, im } => {
-                            let (v1, v2) = ((a.y_axis.x, 0.0), (re - a11, im));
+                            let (v1, v2) = ((a12, 0.0), (re - a11, im));
                             let square = (v1.0 * v1.0 + v2.0 * v2.0 - v2.1 * v2.1, 2.0 * v2.0 * v2.1);
                             assert!(square.0.abs() + square.1.abs() < 1e-9 * (1.0 + v1.0 * v1.0 + im * im), "{a:?}: {square:?}");
                         }
                     },
                     Kind::Projection => assert!(close(a * a, a, 1e-12)),
-                    Kind::Nilpotent | Kind::Shear => {
+                    Kind::Involution => assert!(close(a * a, DMat2::IDENTITY, 1e-12)),
+                    Kind::Root => {
+                        let (n, _, holds) = order(a);
+                        assert!(holds && close(power(a, n), DMat2::IDENTITY, 1e-9), "{a:?}");
+                        for l in [l1, l2] {
+                            // λⁿ = 1
+                            let (r, t) = (l.0.hypot(l.1), l.1.atan2(l.0) * n as f64);
+                            assert!((r - 1.0).abs() < 1e-9 && (t.cos() - 1.0).abs() < 1e-6, "{a:?} {l:?} {n}");
+                        }
+                    }
+                    Kind::Nilpotent | Kind::Shear if size(a) > 0.0 => {
                         let Eigen::Real { l1, lines: Lines::One(v), .. } = e else { panic!("{kind:?} {a:?} {e:?}") };
                         let keep = if kind == Kind::Shear { 1.0 } else { 0.0 };
                         assert!((l1 - keep).abs() < 1e-12 && (a * v - v * keep).length() < 1e-9, "{a:?}");
                         // everything lands on that line (nilpotent), or slides along it (shear)
                         for _ in 0..10 {
-                            let x = DVec2::new(rng.range(-3.0, 3.0) as f64, rng.range(-3.0, 3.0) as f64);
+                            let x = point();
                             assert!((a * x - x * keep).perp_dot(v).abs() < 1e-9, "{a:?}");
                         }
-                        if kind == Kind::Shear {
-                            assert!((a.determinant() - 1.0).abs() < 1e-9);
-                        }
+                        assert!(kind == Kind::Nilpotent || (a.determinant() - 1.0).abs() < 1e-9);
                     }
-                    Kind::Markov => {
+                    Kind::Positive => {
+                        // real, the larger positive and larger in size, its eigenvector positive
+                        let Eigen::Real { l1, l2, lines: Lines::Two(v, _) } = e else { panic!("{a:?} {e:?}") };
+                        assert!(l1 > 0.0 && l1 > l2.abs() && v.x * v.y > 0.0, "{a:?} {e:?}");
+                    }
+                    Kind::Markov | Kind::Doubly => {
                         let Eigen::Real { l1, l2, .. } = e else { panic!("{a:?}") };
                         assert!((l1 - 1.0).abs() < 1e-12 && (l2 - (trace(a) - 1.0)).abs() < 1e-12 && (-1.0 - 1e-12..=1.0 + 1e-12).contains(&l2), "{a:?}");
+                        if kind == Kind::Doubly {
+                            assert!((l2 - (2.0 * a11 - 1.0)).abs() < 1e-12);
+                            assert!(matches!(e, Eigen::Real { lines: Lines::Two(v1, v2), .. } if v1.dot(v2).abs() < 1e-9) || matches!(e, Eigen::Real { lines: Lines::Every, .. }), "{a:?} {e:?}");
+                        }
                     }
+                    Kind::Dominant => {
+                        assert!(discs(a).iter().all(|(c, r)| c.abs() > *r) && a.determinant() != 0.0, "{a:?}");
+                    }
+                    Kind::Singular | Kind::RankOne => {
+                        assert!(l1.1 == 0.0 && (l1.0.abs().min(l2.0.abs()) < 1e-9) && ((l1.0 + l2.0) - trace(a)).abs() < 1e-9, "{a:?} {e:?}");
+                        if kind == Kind::RankOne {
+                            let (u, v) = rank_one_factors(a);
+                            assert!(close(DMat2::from_cols(u * v.x, u * v.y), a, 1e-12) && (v.dot(u) - trace(a)).abs() < 1e-12);
+                        }
+                    }
+                    Kind::Permutation => assert!(close(a, DMat2::IDENTITY, 0.0) || close(a, SWAP, 0.0)),
+                    Kind::Companion => {
+                        // the roots of λ² − a₂₂λ − a₁₂ (t = a₂₂, d = −a₁₂)
+                        for l in [l1, l2] {
+                            let (re, im) = l;
+                            let (sq_re, sq_im) = (re * re - im * im, 2.0 * re * im);
+                            assert!((sq_re - a22 * re - a12).abs() < 1e-9 && (sq_im - a22 * im).abs() < 1e-9, "{a:?} {l:?}");
+                        }
+                    }
+                    _ => {}
                 }
             }
         }
@@ -2869,250 +4650,472 @@ mod tests {
             let Eigen::Complex { re, im } = eigen(DMat2::from_angle(angle)) else { panic!() };
             assert!((re - angle.cos()).abs() < 1e-12 && (im - angle.sin().abs()).abs() < 1e-12);
         }
-    }
-
-    /// What the panel and the table say stays true of each kind under a sum, a product
-    /// and an inverse, tried on many pairs.
-    #[test]
-    fn what_stays_true_is_what_the_panel_says() {
-        let mut rng = Rng::new(41);
-        let pairs = |kind: Kind, rng: &mut Rng| -> Vec<(DMat2, DMat2)> {
-            let mut out = vec![(kind.default_a(), kind.default_b())];
-            out.extend((0..300).map(|_| (random(kind, rng), random(kind, rng))));
-            out
-        };
-        let id = DMat2::IDENTITY;
-        let swap = SWAP;
-        for kind in KINDS {
-            let all = pairs(kind, &mut rng);
-            let [sum, product, inverse_short] = kind.closure_short();
-            let holds = |op: Op, a: DMat2, b: DMat2| combine(op, a, b).map(|c| is(kind, c));
-            let count = |op: Op| all.iter().filter(|(a, b)| holds(op, *a, *b) == Some(true)).count();
-            // sums
-            match sum {
-                "always" => assert_eq!(count(Op::Sum), all.len(), "{kind:?}"),
-                "never" => assert_eq!(count(Op::Sum), 0, "{kind:?}"),
-                _ => {}
-            }
-            // products
-            if product == "always" {
-                assert_eq!(count(Op::Product), all.len(), "{kind:?}");
-            }
-            // inverses
-            for (a, _) in &all {
-                let inv = inverse(*a);
-                match inverse_short {
-                    "always" => assert!(inv.is_some_and(|m| is(kind, m)), "{kind:?}: {a:?}"),
-                    "where it exists" => assert!(inv.is_none_or(|m| is(kind, m)), "{kind:?}: {a:?}"),
-                    "never" => assert!(inv.is_none(), "{kind:?}: {a:?}"),
-                    _ => {}
-                }
-            }
-            match kind {
-                Kind::Diagonal => {
-                    assert!(all.iter().all(|(a, b)| close(*a * *b, *b * *a, 0.0)));
-                    for (a, _) in &all {
-                        let [p, _, _, s] = entries(*a);
-                        assert!(inverse(*a).is_some_and(|m| close(m, rows([1.0 / p, 0.0, 0.0, 1.0 / s]), 1e-12)));
-                    }
-                }
-                Kind::Symmetric | Kind::PosDef => {
-                    // exactly when they commute: pairs that do not, and pairs built to
-                    for (a, b) in &all {
-                        assert_eq!(is(kind, *a * *b), commute(*a, *b), "{kind:?}: {a:?} {b:?}");
-                        // (the eigenvalues of a product of positive definite ones are positive either way)
-                        if kind == Kind::PosDef {
-                            assert!(eigenvalues(eigen(*a * *b)).iter().all(|(re, im)| *im == 0.0 && *re > 0.0), "{a:?} {b:?}");
-                        }
-                    }
-                    for _ in 0..100 {
-                        let q = DMat2::from_angle(rng.range(0.0, 3.2) as f64);
-                        let low = if kind == Kind::PosDef { 0.2 } else { -1.5 };
-                        let d = |rng: &mut Rng| DMat2::from_diagonal(DVec2::new(rng.range(low, 1.5) as f64, rng.range(low, 1.5) as f64));
-                        let (a, b) = (q * d(&mut rng) * q.transpose(), q * d(&mut rng) * q.transpose());
-                        assert!(is(kind, a) && is(kind, b) && commute(a, b) && is(kind, a * b), "{a:?} {b:?}");
-                    }
-                    assert!(count(Op::Product) < all.len());
-                }
-                Kind::Skew => {
-                    for (a, b) in &all {
-                        let p = *a * *b;
-                        assert!(close(p, id * -(a.x_axis.y * b.x_axis.y), 1e-12) && is(Kind::Symmetric, p));
-                        assert_eq!(is(kind, p), size(p) <= 1e-9, "{a:?} {b:?}");
-                    }
-                    assert!(is(kind, J * 0.0 * J));
-                    for (a, _) in &all {
-                        let w = a.x_axis.y;
-                        assert!(inverse(*a).is_some_and(|m| close(m, J * (-1.0 / w), 1e-12)));
-                    }
-                }
-                Kind::Orthogonal => {
-                    // not always: I + I doubles lengths, yet a turn by 0 and one by 120° add to a turn
-                    assert!(!is(kind, id + id) && is(kind, DMat2::from_angle(0.0) + DMat2::from_angle(std::f64::consts::TAU / 3.0)));
-                    for (a, _) in &all {
-                        assert!(close(inverse(*a).unwrap(), a.transpose(), 1e-12));
-                    }
-                }
-                Kind::Normal => {
-                    // not always, either way: a symmetric matrix plus a turn and a scaling,
-                    // or times one, need not be normal; two symmetric ones add to one that is
-                    let (s, t) = (rows([2.0, 0.0, 0.0, 1.0]), J);
-                    assert!(is(kind, s) && is(kind, t) && !is(kind, s + t) && !is(kind, s * t));
-                    assert!(is(kind, s + s) && is(kind, t * t) && count(Op::Sum) < all.len() && count(Op::Product) < all.len());
-                }
-                Kind::Projection => {
-                    // a sum exactly when AB = BA = 0; a product if they commute, not always
-                    for (a, b) in &all {
-                        let zero = size(*a * *b) <= 1e-9 && size(*b * *a) <= 1e-9;
-                        assert_eq!(is(kind, *a + *b), zero, "{a:?} {b:?}");
-                        if commute(*a, *b) {
-                            assert!(is(kind, *a * *b));
-                        }
-                        assert!(inverse(*a).is_none());
-                    }
-                    let p = kind.default_a();
-                    assert!(is(kind, p + (id - p)) && is(kind, p * (id - p)) && is(kind, p * p) && is(kind, id) && inverse(id) == Some(id));
-                    assert!(!is(kind, kind.default_a() * kind.default_b()));
-                }
-                Kind::Nilpotent => {
-                    // not always: along different lines no, along the same line yes
-                    let (n, m) = (kind.default_a(), kind.default_b());
-                    assert!(!is(kind, n + m) && !is(kind, n * m) && is(kind, n + n * 0.5) && is(kind, n * (n * 0.5)));
-                }
-                Kind::Shear => {
-                    for (a, b) in &all {
-                        assert!((trace(*a + *b) - 4.0).abs() < 1e-9);
-                        // along the same line: a shear, or I; along different lines: not
-                        let same = matches!((eigen(*a), eigen(*b)), (Eigen::Real { lines: Lines::One(u), .. }, Eigen::Real { lines: Lines::One(v), .. }) if u.perp_dot(v).abs() < 1e-9);
-                        assert_eq!(is(kind, *a * *b) || close(*a * *b, id, 1e-9), same, "{a:?} {b:?}");
-                        let n = *a - id;
-                        assert!(close(inverse(*a).unwrap(), id - n, 1e-12));
-                    }
-                    let a = kind.default_a();
-                    assert!(is(kind, a * fit(kind, a, 1, DVec2::new(-0.4, 1.0))) && close(a * (id * 2.0 - a), id, 1e-12));
-                }
-                Kind::Markov => {
-                    assert_eq!(count(Op::Sum), 0);
-                    for (a, b) in &all {
-                        assert!(is(kind, (*a + *b) * 0.5));
-                        if let Some(inv) = inverse(*a) {
-                            let [p, q, r, s] = entries(inv);
-                            assert!((p + r - 1.0).abs() < 1e-9 && (q + s - 1.0).abs() < 1e-9 && p.min(q).min(r).min(s) < 0.0, "{a:?}");
-                        }
-                    }
-                    assert!(is(kind, inverse(id).unwrap()) && is(kind, inverse(swap).unwrap()) && is(kind, swap));
-                }
-                Kind::Triangular => {}
+        // every eigenvalue of any matrix lies in a Gershgorin disc
+        for _ in 0..2000 {
+            let m = rows([0; 4].map(|_| rng.range(-3.0, 3.0) as f64));
+            for l in eigenvalues(eigen(m)) {
+                assert!(Region::Discs.holds(l, 1e-9, m), "{m:?}");
             }
         }
+    }
+
+    /// Whether every matrix of `small` is one of `large`, as far as the map is
+    /// concerned: along its lines.
+    fn reaches(small: Kind, large: Kind) -> bool {
+        small == large || EDGES.iter().any(|(s, l)| *s == small && reaches(*l, large))
+    }
+
+    /// Every line of the map holds: every matrix of the smaller kind tried (its own, its
+    /// special ones, hundreds at random) passes the larger kind's test. Every other
+    /// inclusion follows along the lines, and where the map has no path from one kind
+    /// up to another, a matrix of the first is found that is not of the second.
+    #[test]
+    fn the_map_shows_which_kinds_contain_which() {
+        for (small, large) in EDGES {
+            for m in members(small, 2000, 3) {
+                assert!(is(large, m), "{small:?} in {large:?}: not {m:?}");
+            }
+            // (and the line is not one that two others make already)
+            assert!(!KINDS.iter().any(|k| *k != small && *k != large && reaches(small, *k) && reaches(*k, large)), "{small:?} to {large:?} goes through another kind");
+        }
+        for small in KINDS {
+            let all = members(small, 400, 17);
+            for large in KINDS {
+                if reaches(small, large) {
+                    assert!(all.iter().all(|m| is(large, *m)), "{small:?} {large:?}");
+                } else {
+                    assert!(all.iter().any(|m| !is(large, *m)), "the map has no path from {small:?} up to {large:?}, yet every one tried is");
+                }
+            }
+        }
+        // the lines a reader might expect, and why they are not there
+        let not = |small: Kind, large: Kind, m: DMat2| assert!(is(small, m) && !is(large, m), "{small:?} {large:?} {m:?}");
+        not(Kind::Orthogonal, Kind::Symmetric, J);
+        not(Kind::Normal, Kind::Symmetric, J);
+        not(Kind::Projection, Kind::Symmetric, Kind::Projection.default_a());
+        not(Kind::Involution, Kind::Orthogonal, rows([1.0, 1.0, 0.0, -1.0]));
+        not(Kind::Root, Kind::Orthogonal, rows([1.0, -1.0, 1.0, 0.0]));
+        not(Kind::DetOne, Kind::Orthogonal, Kind::Shear.default_a());
+        not(Kind::Shear, Kind::Normal, Kind::Shear.default_a());
+        not(Kind::Positive, Kind::PosDef, rows([1.0, 2.0, 2.0, 1.0]));
+        not(Kind::PosDef, Kind::Positive, rows([1.0, -0.5, -0.5, 1.0]));
+        not(Kind::Markov, Kind::Symmetric, Kind::Markov.default_a());
+        not(Kind::Markov, Kind::Positive, DMat2::IDENTITY);
+        not(Kind::RankOne, Kind::Projection, Kind::RankOne.default_a());
+        not(Kind::Nilpotent, Kind::Upper, Kind::Nilpotent.default_a());
+        not(Kind::JordanBlock, Kind::Shear, Kind::JordanBlock.default_a());
+        not(Kind::Dominant, Kind::Symmetric, Kind::Dominant.default_a());
+        not(Kind::Permutation, Kind::Rotation, SWAP);
+        not(Kind::Permutation, Kind::Reflection, DMat2::IDENTITY);
+        not(Kind::Permutation, Kind::Companion, DMat2::IDENTITY);
+        not(Kind::Singular, Kind::RankOne, DMat2::ZERO);
+        not(Kind::Rotation, Kind::Root, DMat2::from_angle(1.0));
+        not(Kind::Reflection, Kind::DetOne, SWAP);
+    }
+
+    /// The map is drawn so that no two lines cross, no line passes through a box, and
+    /// no two boxes overlap, at the sizes it is drawn at.
+    #[test]
+    fn the_map_can_be_read() {
+        let mut problems = Vec::new();
+        for (tall, area, size) in [(false, (Vec2::new(0.0, 0.0), Vec2::new(720.0, 300.0)), 10.5), (false, (Vec2::new(0.0, 0.0), Vec2::new(1000.0, 700.0)), 10.5), (true, (Vec2::new(0.0, 0.0), Vec2::new(370.0, 540.0)), 9.5), (true, (Vec2::new(0.0, 0.0), Vec2::new(420.0, 800.0)), 10.5)] {
+            let boxes: Vec<(Vec2, Vec2)> = KINDS.iter().map(|k| map_box(*k, area, tall, size)).collect();
+            for i in 0..30 {
+                if !(boxes[i].0.cmpge(area.0).all() && boxes[i].1.cmple(area.1).all()) {
+                    problems.push(format!("{tall} {area:?}: {:?} outside", KINDS[i]));
+                }
+                for j in i + 1..30 {
+                    let (a, b) = (boxes[i], boxes[j]);
+                    let apart = a.1.x + 4.0 <= b.0.x || b.1.x + 4.0 <= a.0.x || a.1.y + 4.0 <= b.0.y || b.1.y + 4.0 <= a.0.y;
+                    if !apart {
+                        problems.push(format!("{tall} {area:?}: {:?} and {:?} overlap", KINDS[i], KINDS[j]));
+                    }
+                }
+            }
+            let seg = |(s, l): (Kind, Kind)| {
+                let (a, b) = (boxes[index(s)], boxes[index(l)]);
+                let (p, q) = ((a.0 + a.1) * 0.5, (b.0 + b.1) * 0.5);
+                (leave_box(p, q, a), leave_box(q, p, b))
+            };
+            let o = |p: Vec2, q: Vec2, r: Vec2| (q - p).perp_dot(r - p);
+            for (i, e) in EDGES.iter().enumerate() {
+                let (p, q) = seg(*e);
+                // the smaller kind lower down
+                if p.y <= q.y {
+                    problems.push(format!("{tall} {area:?}: {e:?} runs downwards"));
+                }
+                for f in &EDGES[i + 1..] {
+                    if e.0 == f.0 || e.0 == f.1 || e.1 == f.0 || e.1 == f.1 {
+                        continue;
+                    }
+                    let (r, s) = seg(*f);
+                    if o(p, q, r) * o(p, q, s) < 0.0 && o(r, s, p) * o(r, s, q) < 0.0 {
+                        problems.push(format!("{tall} {area:?}: {e:?} crosses {f:?}"));
+                    }
+                }
+                for (k, b) in boxes.iter().enumerate() {
+                    if KINDS[k] == e.0 || KINDS[k] == e.1 {
+                        continue;
+                    }
+                    let (lo, hi) = (b.0 - Vec2::splat(3.0), b.1 + Vec2::splat(3.0));
+                    let inside = (0..=200).any(|t| {
+                        let x = p.lerp(q, t as f32 / 200.0);
+                        x.cmpge(lo).all() && x.cmple(hi).all()
+                    });
+                    if inside {
+                        problems.push(format!("{tall} {area:?}: {e:?} passes through {:?}", KINDS[k]));
+                    }
+                }
+            }
+        }
+        assert!(problems.is_empty(), "{}", problems.join("\n"));
+    }
+
+    /// The count of free numbers is the dimension of the kind: 4 less the number of
+    /// independent equations it puts on the entries, worked out from the slopes of
+    /// those equations at matrices of the kind.
+    #[test]
+    fn the_free_numbers_are_the_dimension() {
+        // the equations each kind puts on [a₁₁, a₁₂, a₂₁, a₂₂] near the matrix `at`
+        fn equations(kind: Kind, at: DMat2, m: DMat2) -> Vec<f64> {
+            let [a, b, c, d] = entries(m);
+            let id = DMat2::IDENTITY;
+            let flat = |x: DMat2| entries(x).to_vec();
+            match kind {
+                Kind::Scalar => vec![b, c, a - d],
+                Kind::Diagonal => vec![b, c],
+                Kind::Upper => vec![c],
+                Kind::JordanBlock => vec![c, b - 1.0, a - d],
+                Kind::Lower => vec![b],
+                Kind::Symmetric | Kind::PosDef | Kind::PosSemidef | Kind::Indefinite => vec![b - c],
+                Kind::Skew => vec![a, d, b + c],
+                Kind::ScaledRotation => vec![a - d, b + c],
+                Kind::Normal if is(Kind::Symmetric, at) => vec![b - c],
+                Kind::Normal => vec![a - d, b + c],
+                Kind::Orthogonal | Kind::Rotation | Kind::Reflection => flat(m.transpose() * m - id),
+                Kind::DetOne => vec![m.determinant() - 1.0],
+                Kind::Projection => flat(m * m - m),
+                Kind::OrthProjection => [flat(m * m - m), vec![b - c]].concat(),
+                Kind::Involution => flat(m * m - id),
+                Kind::Nilpotent => flat(m * m),
+                Kind::Shear => flat((m - id) * (m - id)),
+                Kind::Root => flat(power(m, order(at).0) - id),
+                Kind::Markov => vec![a + c - 1.0, b + d - 1.0],
+                Kind::Doubly => vec![a + c - 1.0, b + d - 1.0, a + b - 1.0],
+                Kind::Singular | Kind::RankOne => vec![m.determinant()],
+                Kind::Permutation => flat(m - at),
+                Kind::Companion => vec![a, c - 1.0],
+                Kind::Positive | Kind::Dominant | Kind::Any => Vec::new(),
+            }
+        }
+        // the rank of the equations' slopes, by elimination
+        fn rank(mut rows: Vec<[f64; 4]>) -> usize {
+            let scale = rows.iter().flatten().fold(0.0f64, |s, v| s.max(v.abs())).max(1e-300);
+            let mut r = 0;
+            for col in 0..4 {
+                let Some(p) = (r..rows.len()).max_by(|i, j| rows[*i][col].abs().total_cmp(&rows[*j][col].abs())) else { break };
+                if rows[p][col].abs() <= 1e-6 * scale {
+                    continue;
+                }
+                rows.swap(r, p);
+                for i in 0..rows.len() {
+                    if i != r {
+                        let f = rows[i][col] / rows[r][col];
+                        let pivot = rows[r];
+                        for k in 0..4 {
+                            rows[i][k] -= f * pivot[k];
+                        }
+                    }
+                }
+                r += 1;
+            }
+            r
+        }
+        for kind in KINDS {
+            let leading: usize = kind.free()[..1].parse().unwrap();
+            let mut rng = Rng::new(77);
+            let mut tried = 0;
+            for _ in 0..40 {
+                let at = random(kind, &mut rng);
+                // (the few matrices set apart in the count: 0, I and −I)
+                if size(at) < 1e-9 || size(at - DMat2::IDENTITY) < 1e-9 || size(at + DMat2::IDENTITY) < 1e-9 {
+                    continue;
+                }
+                let h = 1e-6;
+                let base = equations(kind, at, at);
+                let mut slopes: Vec<[f64; 4]> = vec![[0.0; 4]; base.len()];
+                for (k, delta) in [rows([h, 0.0, 0.0, 0.0]), rows([0.0, h, 0.0, 0.0]), rows([0.0, 0.0, h, 0.0]), rows([0.0, 0.0, 0.0, h])].into_iter().enumerate() {
+                    let (up, down) = (equations(kind, at, at + delta), equations(kind, at, at - delta));
+                    for i in 0..base.len() {
+                        slopes[i][k] = (up[i] - down[i]) / (2.0 * h);
+                    }
+                }
+                // (the normal ones are two families: the symmetric, 3, and the scaled rotations, 2)
+                let stated = if kind == Kind::Normal && !is(Kind::Symmetric, at) { 2 } else { leading };
+                assert_eq!(4 - rank(slopes), stated, "{kind:?} at {at:?}");
+                tried += 1;
+            }
+            assert!(tried > 10, "{kind:?}");
+        }
+        // the scaled rotations among the normal matrices: 2
+        assert!(Kind::Normal.free().contains("scaled rotations among them: 2"));
+    }
+
+    /// What the panel and the table say stays true of each kind under a sum, a product,
+    /// an inverse and a transpose: "always", "never", "where it exists" tried on
+    /// hundreds of pairs, and each condition and "not always" held by examples both
+    /// ways.
+    #[test]
+    fn what_stays_true_is_what_the_panel_says() {
+        let id = DMat2::IDENTITY;
+        let mirror = |phi: f64| rows([(2.0 * phi).cos(), (2.0 * phi).sin(), (2.0 * phi).sin(), -(2.0 * phi).cos()]);
+        let turn = DMat2::from_angle;
+        let third = std::f64::consts::TAU / 3.0;
+        for kind in KINDS {
+            let mut rng = Rng::new(41);
+            let all = members(kind, 150, 43);
+            let mut pairs: Vec<(DMat2, DMat2)> = Vec::new();
+            for a in &all {
+                pairs.push((*a, *a));
+                pairs.push((*a, random(kind, &mut rng)));
+            }
+            for op in [Op::Sum, Op::Product, Op::Inverse, Op::Transpose] {
+                let unary = matches!(op, Op::Inverse | Op::Transpose);
+                let results: Vec<Option<DMat2>> = if unary { all.iter().map(|a| combine(op, *a, *a)).collect() } else { pairs.iter().map(|(a, b)| combine(op, *a, *b)).collect() };
+                let of_kind = results.iter().filter(|r| r.is_some_and(|m| is(kind, m))).count();
+                match kind.keeps(op) {
+                    Keeps::Always => assert!(results.iter().all(|r| r.is_some_and(|m| is(kind, m))), "{kind:?} {op:?}"),
+                    Keeps::WhereItExists => assert!(results.iter().all(|r| r.is_none_or(|m| is(kind, m))) && results.iter().any(|r| r.is_some()), "{kind:?} {op:?}"),
+                    Keeps::Never => assert_eq!(of_kind, 0, "{kind:?} {op:?}"),
+                    Keeps::NoInverse => assert!(results.iter().all(|r| r.is_none()), "{kind:?} {op:?}"),
+                    Keeps::Sometimes(_) => {}
+                }
+                assert!(kind.closure(op).ends_with('.'), "{kind:?} {op:?}");
+            }
+        }
+        // the conditions, tried on many pairs, and examples each way of "not always"
+        let both = |kind: Kind, op: Op, yes: (DMat2, DMat2), no: (DMat2, DMat2)| {
+            assert!(matches!(kind.keeps(op), Keeps::Sometimes(_)), "{kind:?} {op:?}");
+            let unary = matches!(op, Op::Inverse | Op::Transpose);
+            for (pair, want) in [(yes, true), (no, false)] {
+                assert!(is(kind, pair.0) && (unary || is(kind, pair.1)), "{kind:?} {op:?} {pair:?}");
+                assert_eq!(combine(op, pair.0, pair.1).is_some_and(|m| is(kind, m)), want, "{kind:?} {op:?} {pair:?}");
+            }
+        };
+        let s = |k: Kind| k.default_a();
+        let t = |k: Kind| k.default_b();
+        both(Kind::Upper, Op::Transpose, (rows([1.5, 0.0, 0.0, 0.6]), id), (s(Kind::Upper), id));
+        both(Kind::Lower, Op::Transpose, (rows([1.5, 0.0, 0.0, 0.6]), id), (s(Kind::Lower), id));
+        both(Kind::Normal, Op::Sum, (rows([2.0, 0.0, 0.0, 1.0]), rows([2.0, 0.0, 0.0, 1.0])), (rows([2.0, 0.0, 0.0, 1.0]), J));
+        both(Kind::Normal, Op::Product, (J, J), (rows([2.0, 0.0, 0.0, 1.0]), J));
+        for kind in [Kind::Orthogonal, Kind::Rotation, Kind::DetOne, Kind::Root] {
+            both(kind, Op::Sum, (id, turn(third)), (id, id));
+        }
+        both(Kind::Reflection, Op::Sum, (mirror(0.3), mirror(0.3 + third / 2.0)), (mirror(0.3), mirror(0.8)));
+        both(Kind::Involution, Op::Sum, (mirror(0.3), mirror(0.3 + third / 2.0)), (id, id));
+        both(Kind::Involution, Op::Product, (s(Kind::Involution), s(Kind::Involution)), (s(Kind::Involution), SWAP));
+        both(Kind::Root, Op::Product, (turn(0.4 * std::f64::consts::PI), turn(0.4 * std::f64::consts::PI)), (mirror(0.0), mirror(0.5)));
+        both(Kind::Indefinite, Op::Sum, (s(Kind::Indefinite), s(Kind::Indefinite)), (s(Kind::Indefinite), -s(Kind::Indefinite)));
+        let shear9 = rows([1.0, 0.9, 0.0, 1.0]);
+        let lopsided = rows([1.0, 0.9, 0.0, 0.5]);
+        both(Kind::Dominant, Op::Sum, (id, id), (id, -id));
+        both(Kind::Dominant, Op::Product, (id, shear9), (shear9, shear9));
+        both(Kind::Dominant, Op::Inverse, (id, id), (lopsided, lopsided));
+        both(Kind::Dominant, Op::Transpose, (id, id), (lopsided, lopsided));
+        assert!(members(Kind::Dominant, 300, 5).iter().all(|m| inverse(*m).is_some()));
+        both(Kind::Singular, Op::Sum, (s(Kind::Singular), s(Kind::Singular)), (rows([1.0, 0.0, 0.0, 0.0]), rows([0.0, 0.0, 0.0, 1.0])));
+        both(Kind::RankOne, Op::Sum, (s(Kind::RankOne), s(Kind::RankOne)), (rows([1.0, 0.0, 0.0, 0.0]), rows([0.0, 0.0, 0.0, 1.0])));
+        both(Kind::RankOne, Op::Product, (s(Kind::RankOne), s(Kind::RankOne)), (rows([1.0, 0.0, 0.0, 0.0]), rows([0.0, 0.0, 0.0, 1.0])));
+        both(Kind::Nilpotent, Op::Sum, (s(Kind::Nilpotent), s(Kind::Nilpotent) * 0.5), (s(Kind::Nilpotent), t(Kind::Nilpotent)));
+        both(Kind::Nilpotent, Op::Product, (s(Kind::Nilpotent), s(Kind::Nilpotent) * 0.5), (s(Kind::Nilpotent), t(Kind::Nilpotent)));
+        both(Kind::Shear, Op::Product, (s(Kind::Shear), fit(Kind::Shear, s(Kind::Shear), 1, DVec2::new(-0.4, 1.0))), (s(Kind::Shear), t(Kind::Shear)));
+        both(Kind::Companion, Op::Product, (rows([0.0, 0.0, 1.0, 1.0]), s(Kind::Companion)), (s(Kind::Companion), s(Kind::Companion)));
+        both(Kind::Companion, Op::Inverse, (SWAP, SWAP), (s(Kind::Companion), s(Kind::Companion)));
+        both(Kind::Companion, Op::Transpose, (rows([0.0, 1.0, 1.0, 0.7]), id), (s(Kind::Companion), id));
+        both(Kind::JordanBlock, Op::Product, (rows([0.3, 1.0, 0.0, 0.3]), rows([0.7, 1.0, 0.0, 0.7])), (s(Kind::JordanBlock), t(Kind::JordanBlock)));
+        both(Kind::Markov, Op::Inverse, (SWAP, SWAP), (s(Kind::Markov), s(Kind::Markov)));
+        both(Kind::Markov, Op::Transpose, (s(Kind::Doubly), id), (s(Kind::Markov), id));
+        both(Kind::Doubly, Op::Inverse, (id, id), (s(Kind::Doubly), s(Kind::Doubly)));
+        both(Kind::Projection, Op::Inverse, (id, id), (s(Kind::Projection), s(Kind::Projection)));
+        both(Kind::OrthProjection, Op::Inverse, (id, id), (s(Kind::OrthProjection), s(Kind::OrthProjection)));
+        // "exactly when" and "only if", over many pairs
+        let mut rng = Rng::new(8);
+        for _ in 0..400 {
+            for kind in [Kind::Symmetric, Kind::PosDef, Kind::PosSemidef, Kind::OrthProjection, Kind::Involution] {
+                let (a, b) = (random(kind, &mut rng), random(kind, &mut rng));
+                assert_eq!(is(kind, a * b), commute(a, b), "{kind:?}: {a:?} {b:?}");
+                if kind == Kind::OrthProjection {
+                    assert_eq!(is(kind, a + b), size(a * b) <= 1e-9, "{a:?} {b:?}");
+                }
+            }
+            let (a, b) = (random(Kind::Projection, &mut rng), random(Kind::Projection, &mut rng));
+            let zero = size(a * b) <= 1e-9 && size(b * a) <= 1e-9;
+            assert_eq!(is(Kind::Projection, a + b), zero, "{a:?} {b:?}");
+            if commute(a, b) {
+                assert!(is(Kind::Projection, a * b));
+            }
+            let (a, b) = (random(Kind::Skew, &mut rng), random(Kind::Skew, &mut rng));
+            assert!(close(a * b, DMat2::IDENTITY * -(a.x_axis.y * b.x_axis.y), 1e-12) && !is(Kind::Skew, a * b));
+            let (a, b) = (random(Kind::Reflection, &mut rng), random(Kind::Reflection, &mut rng));
+            let apart = (0.5 * (a.x_axis.y.atan2(a.x_axis.x) - b.x_axis.y.atan2(b.x_axis.x))).to_degrees().rem_euclid(180.0);
+            assert_eq!(is(Kind::Reflection, a + b), (apart - 60.0).abs() < 1e-6 || (apart - 120.0).abs() < 1e-6, "{apart}");
+            let (a, b) = (random(Kind::Shear, &mut rng), random(Kind::Shear, &mut rng));
+            let same = matches!((eigen(a), eigen(b)), (Eigen::Real { lines: Lines::One(u), .. }, Eigen::Real { lines: Lines::One(v), .. }) if u.perp_dot(v).abs() < 1e-9);
+            assert_eq!(is(Kind::Shear, a * b) || close(a * b, id, 1e-9), same, "{a:?} {b:?}");
+            let (a, b) = (random(Kind::RankOne, &mut rng), random(Kind::RankOne, &mut rng));
+            assert!(is(Kind::RankOne, a * b) || size(a * b) <= 1e-9);
+            let (a, b) = (random(Kind::Companion, &mut rng), random(Kind::Companion, &mut rng));
+            assert_eq!(is(Kind::Companion, a * b), a.y_axis == DVec2::Y, "{a:?}");
+            assert_eq!(inverse(a).is_some_and(|m| is(Kind::Companion, m)), close(a, SWAP, 1e-12));
+            assert_eq!(is(Kind::Companion, a.transpose()), (a.y_axis.x - 1.0).abs() <= 1e-9);
+            let (a, b) = (random(Kind::JordanBlock, &mut rng), random(Kind::JordanBlock, &mut rng));
+            assert_eq!(is(Kind::JordanBlock, a * b), (a.x_axis.x + b.x_axis.x - 1.0).abs() <= 1e-9);
+            let a = random(Kind::Markov, &mut rng);
+            assert_eq!(is(Kind::Markov, a.transpose()), is(Kind::Doubly, a));
+            assert!(is(Kind::Markov, (a + random(Kind::Markov, &mut rng)) * 0.5));
+            for kind in [Kind::Markov, Kind::Doubly] {
+                let a = random(kind, &mut rng);
+                if let Some(inv) = inverse(a) {
+                    let [p, q, r, s] = entries(inv);
+                    assert!((p + r - 1.0).abs() < 1e-9 && (q + s - 1.0).abs() < 1e-9 && p.min(q).min(r).min(s) < 0.0, "{a:?}");
+                }
+            }
+            let a = random(Kind::Positive, &mut rng);
+            assert!(inverse(a).is_none_or(|m| m.to_cols_array().iter().any(|v| *v < 0.0)));
+            let (a, b) = (random(Kind::Upper, &mut rng), random(Kind::Indefinite, &mut rng));
+            assert_eq!(is(Kind::Upper, a.transpose()), is(Kind::Diagonal, a));
+            assert!((b * random(Kind::Indefinite, &mut rng)).determinant() > 0.0);
+        }
+        // the ones every member shows
+        for kind in [Kind::Markov, Kind::Doubly] {
+            assert!(is(kind, id) && is(kind, SWAP) && is(kind, inverse(SWAP).unwrap()));
+        }
+        assert!(is(Kind::Projection, id) && inverse(id) == Some(id));
+        // every matrix but a multiple of I is a companion matrix in the basis v, Av, for
+        // any v that is not an eigenvector
+        for _ in 0..300 {
+            let m = rows([0; 4].map(|_| rng.range(-2.0, 2.0) as f64));
+            let v = DVec2::new(rng.range(-1.0, 1.0) as f64, rng.range(-1.0, 1.0) as f64);
+            let basis = DMat2::from_cols(v, m * v);
+            if basis.determinant().abs() > 0.05 {
+                assert!(is(Kind::Companion, basis.inverse() * m * basis) || size(basis.inverse() * m * basis - rows([0.0, -m.determinant(), 1.0, trace(m)])) < 1e-6, "{m:?}");
+            }
+        }
+        // the product of two complex numbers, as scaled rotations
+        let (a, b) = (s(Kind::ScaledRotation), t(Kind::ScaledRotation));
+        assert!(close(a * b, b * a, 1e-15));
     }
 
     /// The captions of the "things to try", held to account.
     #[test]
-    fn symmetric_right_angles_does_what_its_caption_says() {
+    fn the_complex_numbers_do_what_their_caption_says() {
         let scene = run(0);
-        let a = scene.shown().a;
-        assert!(scene.kind == Kind::Symmetric && scene.op == Op::Alone && is(Kind::Symmetric, a));
-        let Eigen::Real { l1, l2, lines: Lines::Two(v1, v2) } = eigen(a) else { panic!("{:?}", eigen(a)) };
-        assert!((l1 - 2.0).abs() < 1e-12 && (l2 - 0.5).abs() < 1e-12 && v1.dot(v2).abs() < 1e-12);
-        // the ellipse's axes along the eigenlines, stretched by 2 and 0.5
-        let lengths: Vec<f64> = unit_circle().iter().map(|p| (a * *p).length()).collect();
-        let (most, least) = lengths.iter().fold((0.0f64, f64::MAX), |(m, l), v| (m.max(*v), l.min(*v)));
-        assert!((most - 2.0).abs() < 1e-3 && (least - 0.5).abs() < 1e-3 && ((a * v1).length() - 2.0).abs() < 1e-12);
-        // the loop: at every frame A is symmetric (the green column following the pink),
-        // its eigenlines at right angles, and the pink column where the loop has it
-        let mut scene = Special::new();
-        scene.set_up(0);
-        let start = scene.glide.to.a;
-        let mut moved = 0.0f64;
-        let mut frames = 0;
-        while scene.animated() && frames < 60 * 30 {
-            scene.advance(1.0 / 60.0, 1.0 / 60.0);
-            frames += 1;
-            let a = scene.shown().a;
-            assert!(is(Kind::Symmetric, a) && a.y_axis.x == a.x_axis.y);
-            if let Eigen::Real { lines: Lines::Two(v1, v2), .. } = eigen(a) {
-                assert!(v1.dot(v2).abs() < 1e-9);
-            }
-            if let Some((s, from)) = scene.tour {
-                assert!((a.x_axis - loop_at(from, s)).length() < 1e-12);
-            }
-            moved = moved.max(size(a - start));
-        }
-        assert!(moved > 0.5 && close(scene.shown().a, start, 1e-9), "{moved}");
-    }
-
-    #[test]
-    fn the_mirror_does_what_its_caption_says() {
-        let scene = run(1);
-        let a = scene.shown().a;
-        assert!(is(Kind::Orthogonal, a) && (a.determinant() + 1.0).abs() < 1e-12);
-        // the circle lands on itself, and the F keeps its shape but is mirrored
-        assert!(unit_circle().iter().all(|p| ((a * *p).length() - 1.0).abs() < 1e-12));
-        assert!(area(&F_OUTLINE) > 0.0 && (area(&F_OUTLINE.map(|p| a * p)) + area(&F_OUTLINE)).abs() < 1e-12);
-        // the mirror line through (2, 1) stays put; the line across it is reversed
-        let Eigen::Real { l1, l2, lines: Lines::Two(v1, v2) } = eigen(a) else { panic!() };
-        assert!((l1 - 1.0).abs() < 1e-12 && (l2 + 1.0).abs() < 1e-12);
-        assert!(v1.perp_dot(DVec2::new(2.0, 1.0)).abs() < 1e-12 && v2.perp_dot(DVec2::new(-1.0, 2.0)).abs() < 1e-12);
-        assert!(eigenvalues(eigen(a)).iter().all(|l| Region::Circle.holds(*l, 1e-12)));
-        assert_eq!(does(Kind::Orthogonal, a), "reflects the plane in the line at 26.6° to the $x$ axis");
-    }
-
-    #[test]
-    fn the_skew_matrix_does_what_its_caption_says() {
-        let scene = run(2);
-        let s = scene.shown();
-        assert!(scene.show_x && is(Kind::Skew, s.a) && close(s.a, J * 1.2, 0.0));
-        let mut rng = Rng::new(2);
-        for _ in 0..200 {
-            let x = DVec2::new(rng.range(-4.0, 4.0) as f64, rng.range(-4.0, 4.0) as f64);
-            assert!(x.dot(s.a * x).abs() < 1e-12);
-        }
-        assert!(s.x.dot(s.a * s.x) == 0.0);
-        assert_eq!(eigen(s.a), Eigen::Complex { re: 0.0, im: 1.2 });
-        assert_eq!(eigen_text(eigen(s.a)), r"$\lambda = \pm 1.20i$");
-    }
-
-    #[test]
-    fn the_nilpotent_steps_do_what_their_caption_says() {
-        let scene = run(3);
-        let s = scene.shown();
-        let a = s.a;
-        assert!(s.power == 2.0 && is(Kind::Nilpotent, a) && size(a) > 0.5 && size(a * a) == 0.0);
-        assert!(size(powered(a, 2.0)) == 0.0 && close(powered(a, 1.0), a, 0.0) && close(powered(a, 0.0), DMat2::IDENTITY, 0.0));
-        // the first step lands everything on the orange line, which the second sends to 0
-        let Eigen::Real { l1, lines: Lines::One(v), .. } = eigen(a) else { panic!("{:?}", eigen(a)) };
-        assert!(l1 == 0.0 && (a * v).length() < 1e-12);
-        for p in F_OUTLINE {
-            assert!((a * p).perp_dot(v).abs() < 1e-12);
-        }
-        // the steps go from I to A to A², stopping at A between
-        assert!(steps_at(0.0) == 0.0 && steps_at(STEP_SECONDS) == 1.0 && steps_at(STEP_SECONDS + STEP_PAUSE) == 1.0 && steps_at(steps_length()) == 2.0);
-        // a projection squashes onto a line too, and the second step changes nothing
-        for p in members(Kind::Projection, 50, 3) {
-            assert!(close(powered(p, 2.0), p, 1e-12) && close(powered(p, 1.5), p, 1e-12));
-        }
-    }
-
-    #[test]
-    fn the_symmetric_product_does_what_its_caption_says() {
-        let scene = run(4);
         let s = scene.shown();
         let (a, b) = (s.a, s.b);
-        assert!(scene.op == Op::Product && is(Kind::Symmetric, a) && is(Kind::Symmetric, b));
+        assert!(scene.kind == Kind::ScaledRotation && scene.op == Op::Product && is(Kind::ScaledRotation, a) && is(Kind::ScaledRotation, b));
+        // A = 1 + 0.5i, B = 1.2 + 0.9i
+        assert!(close(a, DMat2::IDENTITY + J * 0.5, 0.0) && close(b, DMat2::IDENTITY * 1.2 + J * 0.9, 0.0));
+        let size_of = |m: DMat2| m.x_axis.length();
+        let angle_of = |m: DMat2| degrees(m.x_axis.y.atan2(m.x_axis.x));
+        assert!(num(size_of(a), 2) == "1.12" && num(size_of(b), 2) == "1.50" && angle_of(a) == "26.6°" && angle_of(b) == "36.9°");
         let ab = a * b;
-        assert!(!is(Kind::Symmetric, ab) && close(ab.transpose(), b * a, 1e-15) && !commute(a, b));
-        let Eigen::Complex { re, im } = eigen(ab) else { panic!() };
-        assert!(num(re, 2) == "0.88" && num(im, 2) == "0.99", "{re} {im}");
-        assert_eq!(verdict(Kind::Symmetric, ab, "AB").0, r"$(AB)^\top \ne AB$: they differ by up to $2.25$");
-        // every direction is turned, the same way round
-        let turns: Vec<f64> = (0..180).map(|d| DVec2::from_angle((d as f64).to_radians())).map(|d| d.perp_dot(ab * d)).collect();
-        assert!(turns.iter().all(|t| *t > 0.0) || turns.iter().all(|t| *t < 0.0));
-        // and two orthogonal matrices always have an orthogonal product
-        let mut rng = Rng::new(4);
-        for _ in 0..200 {
-            assert!(is(Kind::Orthogonal, random(Kind::Orthogonal, &mut rng) * random(Kind::Orthogonal, &mut rng)));
+        assert!(close(ab, rows([0.75, -1.5, 1.5, 0.75]), 1e-15) && close(ab, b * a, 1e-15));
+        assert!(angle_of(ab) == "63.4°" && num(size_of(ab), 2) == "1.68" && num(size_of(a) * size_of(b), 2) == "1.68");
+        // the letter turned by 63.4° and stretched by 1.68: AB = |AB| R(θ)
+        assert!(close(ab, DMat2::from_angle(ab.x_axis.y.atan2(ab.x_axis.x)) * size_of(ab), 1e-12));
+        assert_eq!(eigen(ab), Eigen::Complex { re: 0.75, im: 1.5 });
+        assert_eq!(eigen(a), Eigen::Complex { re: 1.0, im: 0.5 });
+        // (and inside the chart: up to 1.7 either way)
+        assert!(heading_ok(&scene));
+    }
+
+    fn heading_ok(scene: &Special) -> bool {
+        let (first, second) = scene.heading_text(false);
+        !first.is_empty() && !first.contains("NaN") && !second.contains("NaN")
+    }
+
+    #[test]
+    fn the_slanted_involution_does_what_its_caption_says() {
+        let scene = run(1);
+        let s = scene.shown();
+        let a = s.a;
+        assert!(scene.kind == Kind::Involution && s.power == 2.0 && close(a, rows([1.0, 1.0, 0.0, -1.0]), 0.0));
+        assert!(close(a * a, DMat2::IDENTITY, 0.0) && close(powered(a, 2.0), DMat2::IDENTITY, 0.0));
+        // after one step the letter is flipped (area reversed), slanted and stretched
+        let once = F_OUTLINE.map(|p| a * p);
+        assert!(area(&once) < 0.0 && (area(&once) + area(&F_OUTLINE)).abs() < 1e-12);
+        assert!(close(a * DMat2::IDENTITY, a, 0.0) && (a * DVec2::Y - DVec2::new(1.0, -1.0)).length() == 0.0 && (a * DVec2::Y).length() > 1.0);
+        assert!(!is(Kind::Orthogonal, a) && !is(Kind::Reflection, a) && is(Kind::Involution, a) && is(Kind::Root, a));
+        let Eigen::Real { l1, l2, lines: Lines::Two(v1, v2) } = eigen(a) else { panic!() };
+        assert!(l1 == 1.0 && l2 == -1.0 && v1.perp_dot(DVec2::X).abs() < 1e-12 && v2.perp_dot(DVec2::new(1.0, -2.0)).abs() < 1e-12 && v1.dot(v2).abs() > 0.1);
+        // the steps went from I to A to A² = I
+        assert!(steps_at(0.0, 2) == 0.0 && steps_at(steps_length(2), 2) == 2.0);
+        assert_eq!(scene.steps_top(a), 2);
+    }
+
+    #[test]
+    fn the_gershgorin_discs_do_what_their_caption_says() {
+        let mut scene = Special::new();
+        scene.set_up(2);
+        assert!(scene.kind == Kind::Any && scene.discs && scene.family == Family::Signs);
+        let mut seen = Vec::new();
+        for _ in 0..60 * 20 {
+            scene.advance(1.0 / 60.0, 1.0 / 60.0);
+            // (once the glide to the experiment's matrix has arrived and the tour is under way)
+            if !scene.glide.arrived() {
+                continue;
+            }
+            let a = scene.shown().a;
+            let [a11, a12, a21, a22] = entries(a);
+            // a₁₂ alone moves, from 0 to 2
+            assert!(a11 == 1.0 && a21 == 0.5 && a22 == 1.0 && (-1e-12..=2.0 + 1e-12).contains(&a12), "{a:?}");
+            for l in eigenvalues(eigen(a)) {
+                assert!(Region::Discs.holds(l, 1e-9, a), "{a:?}");
+            }
+            let dominant = is(Kind::Dominant, a);
+            if a12 < 0.999 {
+                assert!(dominant && discs(a).iter().all(|(c, r)| c.abs() > *r) && a.determinant() > 0.0, "{a:?}");
+            }
+            if a12 > 1.001 {
+                assert!(!dominant && discs(a)[0].1 > discs(a)[0].0.abs(), "{a:?}");
+            }
+            seen.push(a12);
+            if !scene.animated() {
+                break;
+            }
         }
+        assert!(seen.windows(2).all(|w| w[1] >= w[0]) && seen.first().is_some_and(|v| *v < 0.05));
+        let a = scene.shown().a;
+        assert!(close(a, rows([1.0, 2.0, 0.5, 1.0]), 0.0) && is(Kind::Singular, a) && !is(Kind::Dominant, a));
+        let Eigen::Real { l1, l2, .. } = eigen(a) else { panic!() };
+        assert!(l1 == 2.0 && l2 == 0.0);
+        assert!(lit_names(a).contains(&Kind::Singular) && !lit_names(rows([1.0, 0.0, 0.5, 1.0])).contains(&Kind::Singular) && lit_names(rows([1.0, 0.0, 0.5, 1.0])).contains(&Kind::Dominant));
+    }
+
+    #[test]
+    fn the_positive_matrix_does_what_its_caption_says() {
+        let scene = run(3);
+        let a = scene.shown().a;
+        assert!(scene.kind == Kind::Positive && is(Kind::Positive, a) && !is(Kind::Symmetric, a) && !is(Kind::PosDef, a));
+        let Eigen::Real { l1, l2, lines: Lines::Two(v1, v2) } = eigen(a) else { panic!() };
+        assert!(l1 == 2.0 && l2 == -0.5 && v1.perp_dot(DVec2::ONE).abs() < 1e-12 && v2.perp_dot(DVec2::new(3.0, -2.0)).abs() < 1e-12);
+        let a2 = powered(a, 2.0);
+        assert!((a2 * DVec2::ONE - DVec2::ONE * 4.0).length() < 1e-12 && (a2 * DVec2::new(3.0, -2.0) - DVec2::new(3.0, -2.0) * 0.25).length() < 1e-12 && 4.0 / 0.25 == 16.0);
+        assert_eq!(scene.shown().power, 2.0);
+    }
+
+    #[test]
+    fn the_swap_does_what_its_caption_says() {
+        let scene = run(4);
+        let a = scene.shown().a;
+        assert!(scene.kind == Kind::Any && scene.map_alone && scene.family == Family::Named && a == SWAP);
+        let lit = lit_names(a);
+        let said = [Kind::Permutation, Kind::Reflection, Kind::Orthogonal, Kind::Symmetric, Kind::Normal, Kind::Indefinite, Kind::Involution, Kind::Root, Kind::Doubly, Kind::Markov, Kind::Companion];
+        assert_eq!(lit.len(), 11);
+        assert!(said.iter().all(|k| lit.contains(k)), "{lit:?}");
+        assert!(a * DVec2::new(0.3, 0.7) == DVec2::new(0.7, 0.3) && does(Kind::Reflection, a) == "reflects the plane in the line at 45.0° to the $x$ axis");
+        assert!(matches!(eigen(a), Eigen::Real { l1, l2, .. } if l1 == 1.0 && l2 == -1.0));
+        assert_eq!(scene.heading_text(false).0, "Any matrix: $A$ is of 11 kinds");
     }
 
     /// What the heading says each kind's own matrix does, with its numbers.
@@ -3120,30 +5123,59 @@ mod tests {
     fn the_headings_say_what_the_matrices_do() {
         let say = |k: Kind| does(k, k.default_a());
         assert_eq!(say(Kind::Diagonal), "multiplies the $x$ axis by $1.50$ and the $y$ axis by $0.60$");
-        assert_eq!(say(Kind::Triangular), "keeps the $x$ axis on itself, multiplying it by $1.20$");
-        assert!(Kind::Triangular.default_a() * DVec2::X == DVec2::new(1.2, 0.0));
+        assert_eq!(say(Kind::Upper), "keeps the $x$ axis on itself, multiplying it by $1.20$");
+        assert_eq!(say(Kind::Lower), "keeps the $y$ axis on itself, multiplying it by $0.60$");
+        assert!(Kind::Upper.default_a() * DVec2::X == DVec2::new(1.2, 0.0) && Kind::Lower.default_a() * DVec2::Y == DVec2::new(0.0, 0.6));
         assert_eq!(say(Kind::Symmetric), r"stretches along two perpendicular lines, by $\lambda = 2.00$ and $0.50$");
         assert_eq!(say(Kind::PosDef), r"stretches along two perpendicular lines, by $\lambda = 1.50$ and $0.50$, both positive");
+        assert_eq!(say(Kind::PosSemidef), r"stretches along two perpendicular lines, by $\lambda = 2.00$ and $0.00$, neither negative");
         assert_eq!(say(Kind::Skew), "turns every arrow a quarter turn anticlockwise and multiplies its length by $1.20$");
         assert_eq!(say(Kind::Orthogonal), "turns the plane by 53.1°, keeping every length");
+        assert_eq!(say(Kind::Rotation), "turns the plane by 53.1°, keeping every length");
         assert!(close(Kind::Orthogonal.default_a(), DMat2::from_angle(53.13010235415598f64.to_radians()), 1e-12));
+        assert_eq!(say(Kind::Reflection), "reflects the plane in the line at 26.6° to the $x$ axis");
+        assert_eq!(does(Kind::Orthogonal, Kind::Orthogonal.default_b()), "reflects the plane in the line at 26.6° to the $x$ axis");
+        assert!((Kind::Reflection.default_a() * DVec2::new(2.0, 1.0) - DVec2::new(2.0, 1.0)).length() < 1e-12);
         assert_eq!(say(Kind::Normal), "turns the plane by 33.7° and multiplies every length by $1.08$");
+        assert_eq!(say(Kind::ScaledRotation), "turns the plane by 22.6° and multiplies every length by $1.30$");
         let n = Kind::Normal.default_a();
         assert!(close(n, DMat2::from_angle(0.6f64.atan2(0.9)) * 0.9f64.hypot(0.6), 1e-12));
+        assert_eq!(say(Kind::Scalar), "multiplies every vector by $1.30$");
+        assert_eq!(say(Kind::JordanBlock), r"multiplies the $x$ axis by $\lambda = 1.20$ and slides every other point along it");
+        assert_eq!(say(Kind::Companion), "sends $(1, 0)$ to $(0, 1)$, and $(0, 1)$ to its last column, $(−0.50, 1.50)$");
+        assert_eq!(say(Kind::Indefinite), r"stretches the orange line by $\lambda = 1.67$ and reverses the purple one, at right angles to it, by $-1.17$".replace('-', "−"));
+        assert_eq!(say(Kind::Positive), r"stretches most along the orange line, by $\lambda = 2.00$, which runs through the positive quarter");
+        assert_eq!(say(Kind::Doubly), r"maps shares to shares and keeps $(1, 1)$: each new coordinate is $0.80$ of one old one and $0.20$ of the other");
+        assert_eq!(say(Kind::Root), "brings every point back where it started after $6$ steps");
+        assert_eq!(order(Kind::Root.default_a()).0, 6);
+        assert_eq!(order(Kind::Root.default_b()).0, 3);
         // the orange line is the line kept (λ = 1), the purple one the line sent to 0
-        let p = Kind::Projection.default_a();
-        let Eigen::Real { l1, l2, lines: Lines::Two(v1, v2) } = eigen(p) else { panic!() };
-        assert!((l1 - 1.0).abs() < 1e-12 && l2.abs() < 1e-12 && (p * v1 - v1).length() < 1e-12 && (p * v2).length() < 1e-12);
-        // Markov: the shares segment goes into itself
-        let m = Kind::Markov.default_a();
-        for t in 0..=10 {
-            let q = m * DVec2::new(t as f64 / 10.0, 1.0 - t as f64 / 10.0);
-            assert!(q.x >= 0.0 && q.y >= 0.0 && (q.x + q.y - 1.0).abs() < 1e-12);
+        for kind in [Kind::Projection, Kind::OrthProjection] {
+            let p = kind.default_a();
+            let Eigen::Real { l1, l2, lines: Lines::Two(v1, v2) } = eigen(p) else { panic!() };
+            assert!((l1 - 1.0).abs() < 1e-12 && l2.abs() < 1e-12 && (p * v1 - v1).length() < 1e-12 && (p * v2).length() < 1e-12);
+            assert_eq!(v1.dot(v2).abs() < 1e-9, kind == Kind::OrthProjection);
         }
+        // shares go into shares (Markov), and (1, 1) is kept too (doubly stochastic)
+        for kind in [Kind::Markov, Kind::Doubly] {
+            let m = kind.default_a();
+            for t in 0..=10 {
+                let q = m * DVec2::new(t as f64 / 10.0, 1.0 - t as f64 / 10.0);
+                assert!(q.x >= 0.0 && q.y >= 0.0 && (q.x + q.y - 1.0).abs() < 1e-12);
+            }
+        }
+        assert!(Kind::Doubly.default_a() * DVec2::ONE == DVec2::ONE);
+        // the involution keeps the x axis and reverses (1, −2)
+        assert_eq!(say(Kind::Involution), "keeps the orange line and reverses the purple one: done twice, nothing has moved");
+        // a nilpotent matrix's first step lands everything on the line it sends to 0
+        let a = Kind::Nilpotent.default_a();
+        let Eigen::Real { l1, lines: Lines::One(v), .. } = eigen(a) else { panic!() };
+        assert!(l1 == 0.0 && (a * v).length() < 1e-12 && size(a * a) == 0.0 && F_OUTLINE.iter().all(|p| (a * *p).perp_dot(v).abs() < 1e-12));
+        assert!(size(powered(a, 2.0)) == 0.0 && close(powered(a, 1.0), a, 0.0) && close(powered(a, 0.0), DMat2::IDENTITY, 0.0));
         // every heading is finished and says something
         for kind in KINDS {
-            assert!(!kind.closure(Op::Alone).contains('.') && !kind.eigen_words().is_empty());
-            for op in [Op::Sum, Op::Product, Op::Inverse] {
+            assert!(!kind.closure(Op::Alone).contains('.') && !kind.eigen_words().is_empty() && !does(kind, kind.default_a()).is_empty(), "{kind:?}");
+            for op in [Op::Sum, Op::Product, Op::Inverse, Op::Transpose] {
                 assert!(kind.closure(op).ends_with('.'), "{kind:?} {op:?}");
             }
         }
@@ -3160,8 +5192,8 @@ mod tests {
         }
         cases.extend([DMat2::ZERO, DMat2::IDENTITY, SWAP, J, rows([1e-12, 0.0, 0.0, 0.0]), rows([3.0; 4])]);
         for m in cases {
-            for kind in KINDS {
-                for n in ["A", "A + B", "AB", "A^{-1}"] {
+            for kind in KINDS.into_iter().chain([Kind::Any]) {
+                for n in ["A", "A + B", "AB", "A^{-1}", r"A^\top"] {
                     let (first, holds, second) = verdict(kind, m, n);
                     assert_eq!(holds, is(kind, m), "{kind:?} {m:?}");
                     for text in [Some(first), second, Some(does(kind, m)), Some(kind.equation(n))].into_iter().flatten() {
@@ -3181,19 +5213,22 @@ mod tests {
                 for op in OPS {
                     let c = combine(op, within_limits(a), within_limits(b));
                     if let Some(c) = c {
-                        for power in [0.0, 0.5, 1.0, 1.7, 2.0, -1.0, 9.0] {
+                        for power in [0.0, 0.5, 1.0, 1.7, 2.0, -1.0, 9.0, 12.0, 40.0, f64::NAN] {
                             assert!(powered(c, power).is_finite());
                         }
                         let e = eigen(c);
                         assert!(eigenvalues(e).iter().all(|(re, im)| re.is_finite() && im.is_finite()));
                         assert!(!eigen_text(e).contains("NaN"));
+                        let (_, off, _) = order(c);
+                        assert!(off.is_finite());
                     }
                 }
             }
-            for kind in KINDS {
+            for kind in KINDS.into_iter().chain([Kind::Any]) {
                 for j in 0..2 {
                     assert!(fit(kind, a, j, DVec2::new(0.3, 0.2)).is_finite());
                 }
+                assert!(random(kind, &mut Rng::new(1)).is_finite());
             }
         }
         assert!(inverse(DMat2::ZERO).is_none() && inverse(rows([1.0, 2.0, 0.5, 1.0])).is_none() && inverse(Kind::Nilpotent.default_a()).is_none());
@@ -3207,39 +5242,72 @@ mod tests {
         for k in 0..TRIALS.len() {
             let _ = run(k);
         }
-        for kind in KINDS {
+        for kind in KINDS.into_iter().chain([Kind::Any]) {
             let mut scene = Special::new();
             scene.choose(kind);
             scene.another(false);
             scene.choose_op(Op::Product);
             scene.another(true);
-            for _ in 0..600 {
+            scene.steps = Some((0.0, scene.steps_top(scene.glide.to.a)));
+            for _ in 0..60 * 30 {
                 scene.advance(1.0 / 60.0, 1.0 / 60.0);
             }
             assert!(!scene.animated() && is(kind, scene.glide.to.a) && is(kind, scene.glide.to.b), "{kind:?}");
         }
+        // a root of I plays its steps all the way back to I
+        let mut scene = Special::new();
+        scene.choose(Kind::Root);
+        let a = scene.glide.to.a;
+        let top = scene.steps_top(a);
+        assert_eq!(top, 6);
+        scene.steps = Some((0.0, top));
+        for _ in 0..60 * 30 {
+            scene.advance(1.0 / 60.0, 1.0 / 60.0);
+        }
+        assert!(scene.shown().power == 6.0 && close(powered(a, 6.0), DMat2::IDENTITY, 1e-12));
     }
 
-    /// The panel and the picture fit the canvas, from a phone to a desktop, and the
-    /// panel's parts stay inside it, one below another.
+    /// The panel, the picture and the map fit the canvas, from a phone to a desktop,
+    /// and the panel's parts stay inside it, one below another.
     #[test]
     fn the_layout_fits_every_canvas() {
-        for (w, h) in [(1080.0, 1000.0), (580.0, 700.0), (390.0, 800.0), (390.0, 560.0), (360.0, 640.0), (800.0, 600.0), (1600.0, 1000.0), (240.0, 180.0), (620.0, 480.0), (1300.0, 700.0)] {
+        for (w, h) in [(1080.0, 1000.0), (580.0, 700.0), (390.0, 800.0), (390.0, 560.0), (360.0, 640.0), (800.0, 600.0), (1600.0, 1000.0), (240.0, 180.0), (620.0, 480.0), (1300.0, 700.0), (1400.0, 1100.0)] {
             for inset in [0.0, 46.0] {
                 for two in [false, true] {
-                    let view = Vec2::new(w, h);
-                    let lay = Layout::of(view, inset, two);
-                    let (min, max) = lay.picture;
-                    assert!(min.cmpge(Vec2::ZERO).all() && max.cmple(view).all() && (max - min).min_element() > 50.0, "{w}x{h}: {lay:?}");
-                    if let Some(p) = &lay.panel {
-                        let within = |q: Vec2| q.cmpge(p.min - Vec2::splat(0.5)).all() && q.cmple(p.max + Vec2::splat(0.5)).all();
-                        assert!(p.min.cmpge(Vec2::ZERO).all() && p.max.cmple(view + Vec2::splat(0.5)).all(), "{w}x{h}: {p:?}");
-                        assert!(p.chips.iter().all(|(lo, hi)| within(*lo) && within(*hi)) && within(p.chart.0) && within(p.chart.1) && within(p.another.1) && within(p.another_b.1), "{w}x{h}: {p:?}");
-                        let rows = (if two { 5 } else { 3 } as usize).div_ceil(p.per_row);
-                        let last = p.cells + Vec2::new((p.per_row - 1) as f32 * p.step.x + matrix_w(p.text), rows as f32 * p.step.y);
-                        assert!(within(last) && last.y <= p.lines_end && p.lines_end <= p.chart_title.y && p.chart.1.y < p.another.0.y, "{w}x{h}: {p:?}");
-                        assert!(p.chips.iter().all(|c| c.1.y < p.title.y) && p.note.y < p.title.y, "{w}x{h}");
-                        assert!(p.min.y >= inset || lay.narrow, "{w}x{h}: under the buttons");
+                    for alone in [false, true] {
+                        let view = Vec2::new(w, h);
+                        let lay = Layout::of(view, inset, two, alone);
+                        let (min, max) = lay.picture;
+                        assert!(min.cmpge(Vec2::ZERO).all() && max.cmple(view).all() && (max - min).min_element() > 50.0, "{w}x{h}: {lay:?}");
+                        if let Some((lo, hi)) = lay.map {
+                            assert!(lo.cmpge(Vec2::ZERO).all() && hi.cmple(view).all() && (hi - lo).min_element() > 200.0, "{w}x{h}: {lay:?}");
+                            if let Some(p) = &lay.panel {
+                                assert!(!overlap((lo, hi), (p.min, p.max)), "{w}x{h}: the map under the panel");
+                            }
+                            if lay.show == Show::Both {
+                                assert!(lay.picture.1.y <= lo.y, "{w}x{h}: the map under the plane");
+                            }
+                        }
+                        assert_eq!(lay.show == Show::Map, alone && lay.map.is_some(), "{w}x{h}");
+                        if let Some(p) = &lay.panel {
+                            let within = |q: Vec2| q.cmpge(p.min - Vec2::splat(0.5)).all() && q.cmple(p.max + Vec2::splat(0.5)).all();
+                            assert!(p.min.cmpge(Vec2::ZERO).all() && p.max.cmple(view + Vec2::splat(0.5)).all(), "{w}x{h}: {p:?}");
+                            assert!(p.tabs.iter().chain(p.chips.iter().flatten()).all(|(lo, hi)| within(*lo) && within(*hi)), "{w}x{h}: {p:?}");
+                            let chips_end = p.chips.iter().flatten().fold(0.0f32, |m, c| m.max(c.1.y));
+                            assert!(p.tabs.iter().all(|t| t.1.y < chips_end) && chips_end < p.title.y, "{w}x{h}");
+                            if let (Some(chart), Some((a, b))) = (p.chart, p.another) {
+                                let last = p.cells + Vec2::new((p.per_row - 1) as f32 * p.step.x + matrix_w(p.text), p.rows as f32 * p.step.y);
+                                assert!(within(chart.rect.0) && within(chart.rect.1) && within(a.1) && within(b.1), "{w}x{h}: {p:?}");
+                                assert!(within(last) && last.y <= p.lines_end && p.lines_end <= chart.title.y && chart.rect.1.y < a.0.y, "{w}x{h}: {p:?}");
+                                if let Some(t) = p.table {
+                                    assert!(t.y >= p.lines_end && t.y + 5.0 * TABLE_LINE <= chart.title.y);
+                                }
+                            }
+                            assert!(p.min.y >= inset || lay.narrow, "{w}x{h}: under the buttons");
+                            if let Some((_, _, foot)) = lay.caption {
+                                assert!(foot <= p.min.y || !lay.narrow, "{w}x{h}: the caption over the panel");
+                            }
+                        }
                     }
                 }
             }
