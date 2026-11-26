@@ -1,0 +1,4 @@
+# The code is written wide: formulas and drawing calls read best on one line.
+max_width = 160
+# Keep struct literals, calls and chains on one line whenever they fit.
+use_small_heuristics = "Max"

@@ -1,0 +1,65 @@
+<!doctype html>
+<!-- Diagnostics: starts eidos, mirrors console errors on screen, reports the graphics backend. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>eidos diagnostics</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #07090f; color: #e6eaf2; font: 13px/1.4 monospace; }
+    canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+    #log { position: fixed; left: 8px; bottom: 8px; right: 8px; max-height: 45%; overflow: auto; white-space: pre-wrap;
+           background: rgba(0,0,0,0.75); padding: 6px 8px; border-radius: 6px; pointer-events: none; }
+    #loading { position: fixed; top: 8px; left: 8px; }
+  </style>
+</head>
+<body>
+  <canvas id="eidos" tabindex="0"></canvas>
+  <div id="loading">loading…</div>
+  <div id="log"></div>
+  <script type="module">
+    const log = document.getElementById("log");
+    const say = (kind, args) => { log.textContent += `[${kind}] ` + args.map(String).join(" ") + "\n"; };
+    for (const kind of ["error", "warn"]) {
+      const orig = console[kind].bind(console);
+      console[kind] = (...a) => { say(kind, a); orig(...a); };
+    }
+    window.addEventListener("error", (e) => say("uncaught", [e.message]));
+    window.addEventListener("unhandledrejection", (e) => say("rejected", [e.reason]));
+    say("info", ["WebGPU: " + (navigator.gpu ? "available" : "not available"),
+                 " WebGL2: " + (document.createElement("canvas").getContext("webgl2") ? "available" : "not available")]);
+    // Which graphics hardware the browser is using. The WebGL renderer string names
+    // it; "SwiftShader", "llvmpipe" or "Software" in it means no GPU is in use.
+    try {
+      const gl = document.createElement("canvas").getContext("webgl2");
+      const ext = gl && gl.getExtension("WEBGL_debug_renderer_info");
+      say("info", ["WebGL renderer: " + (gl ? gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER) : "none")]);
+    } catch (e) { say("info", ["WebGL renderer: unknown (" + e + ")"]); }
+    try {
+      const adapter = navigator.gpu && await navigator.gpu.requestAdapter();
+      if (adapter) {
+        const i = adapter.info || {};
+        const fallback = i.isFallbackAdapter ?? adapter.isFallbackAdapter;
+        say("info", ["WebGPU adapter: " + [i.vendor, i.architecture, i.device, i.description].filter(Boolean).join(" ")
+                     + (fallback ? "  -- SOFTWARE fallback, no GPU" : "  -- hardware")]);
+      } else if (navigator.gpu) {
+        say("info", ["WebGPU adapter: none offered"]);
+      }
+    } catch (e) { say("info", ["WebGPU adapter: unknown (" + e + ")"]); }
+    const { default: init } = await import("./pkg/eidos.js");
+    // (the program removes #loading when its first frame is up, and writes the reason
+    // into it if it cannot draw)
+    try {
+      await init();
+      say("info", ["program loaded"]);
+      const box = document.getElementById("loading");
+      for (let i = 0; i < 100 && box && box.isConnected && !box.textContent.includes("could not start"); i++) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      say("info", [!box || !box.isConnected ? "started" : "not started: " + box.textContent.trim()]);
+    } catch (e) { say("init failed", [e]); }
+    // hold the page's load event until a few seconds of frames have been drawn
+    const wait = Number(new URLSearchParams(location.search).get("wait") || 0);
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  </script>
+</body>
+</html>

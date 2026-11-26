@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>eidos: mathematics you can touch</title>
+  <meta name="description" content="Interactive pictures of linear algebra, calculus, dynamics, statistics, Hermite polynomials, neural networks and interpretability. Everything is computed and drawn live in your browser.">
+  <meta name="theme-color" content="#07090f">
+  <!-- added to a phone's home screen, the page opens full screen, without the browser around it
+       (on an iPhone that is the only way: its browser has no full-screen mode for pages) -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="eidos">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <!-- how a link to this page looks when it is shared -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="eidos: mathematics you can touch">
+  <meta property="og:description" content="Interactive pictures of linear algebra, calculus, dynamics, statistics, Hermite polynomials, neural networks and interpretability, drawn live in your browser.">
+  <meta property="og:url" content="https://marbinner.github.io/eidos/">
+  <meta property="og:image" content="https://marbinner.github.io/eidos/preview.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23090c14'/%3E%3Cpath d='M8 34c8-26 16-26 24 0s16 26 24 0' fill='none' stroke='%234cc9f0' stroke-width='6' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='34' r='5' fill='%23ffd166'/%3E%3C/svg%3E">
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #07090f; color: #e6eaf2;
+                 font: 15px/1.5 system-ui, sans-serif; }
+    canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
+    #loading { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; }
+    #loading b { font-size: 28px; font-weight: 600; letter-spacing: 0.02em; }
+    #loading span { color: #8792a8; }
+    #stopped { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; background: rgba(8, 10, 16, 0.82); line-height: 1.9; }
+    #stopped b { font-size: 22px; font-weight: 600; }
+    #stopped span { color: #b8c0d0; }
+    #stopped button { margin-top: 10px; padding: 6px 18px; font: inherit; color: #e6eaf2; background: #264e96; border: 0; border-radius: 6px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <canvas id="eidos" tabindex="0"></canvas>
+  <div id="loading"><div><b>eidos</b><br><span>loading… (about 3 MB, once)</span></div></div>
+  <noscript><div style="position:fixed;inset:0;display:grid;place-items:center">eidos needs JavaScript and WebGPU or WebGL2.</div></noscript>
+  <script type="module">
+    // F1 shows our frame timings; without this the browser also opens its help
+    window.addEventListener("keydown", (e) => { if (e.key === "F1") e.preventDefault(); });
+    // If the program stops (a bug), the picture would simply freeze: say so instead.
+    const stopped = (what) => {
+      const text = String((what && (what.message || what.reason)) || what || "");
+      if (!/unreachable|RuntimeError|panicked|memory access|recursion/i.test(text)) return;
+      if (document.getElementById("stopped")) return;
+      const box = document.createElement("div");
+      box.id = "stopped";
+      box.innerHTML = "<div><b>eidos has stopped</b><br><span>Something went wrong inside it. " +
+        "Reloading the page starts it again.</span><br><button>reload</button></div>";
+      box.querySelector("button").onclick = () => location.reload();
+      document.body.appendChild(box);
+    };
+    window.addEventListener("error", (e) => stopped(e.error || e.message));
+    window.addEventListener("unhandledrejection", (e) => stopped(e.reason));
+    // (imported this way so that a failed download ends in a message, not in
+    // "loading" for ever)
+    import("./pkg/eidos.js").then((m) => m.default()).catch((e) => {
+      const box = document.getElementById("loading");
+      if (!box) return;
+      box.innerHTML = "<div><b>eidos could not start</b><br><span></span><br><span>Reloading the page may help.</span></div>";
+      box.querySelector("span").textContent = String(e);
+    });
+  </script>
+</body>
+</html>

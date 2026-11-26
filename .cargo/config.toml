@@ -1,0 +1,7 @@
+# (Where the build goes is each machine's own business: set `build.target-dir` in a
+# `.cargo/config.toml` in a directory above this one, or CARGO_TARGET_DIR.)
+
+# WebAssembly SIMD: lets the compiler vectorise the array loops (formula evaluation,
+# network forward passes, colour conversion). Every current browser supports it.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "target-feature=+simd128"]

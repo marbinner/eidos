@@ -1,0 +1,190 @@
+# Texts that `eidos mathlint` reads as having mathematics outside dollars, but that
+# someone has looked at and found right as they are. One a line:
+#
+#     scene: a part of the text
+#
+#     scene: =the whole text
+#
+# (`*` for the scene matches every scene). A text containing that part (or, with `=`,
+# that is exactly that) is not looked at for (b) and (c); markup that does not parse
+# is still reported.
+
+# The Fourier basis: the arrow at the end of the frequency axis's name points along the
+# axis, the way the frequencies grow; it is not a formula.
+dft: fits into the $N$ samples →
+dft: =frequency $k$ →
+# One map after another: "F" is the letter painted on the unit square (a shape, so
+# that turns and flips can be told apart), not a variable.
+compose: the F ends mirrored
+compose: white F: painted on the square
+compose: where the square and the F end in the other order
+
+# Sparse autoencoders: a latent is named by a letter (A, B, …, then a, b, … past Z), as
+# the true features are numbered; the letter is its name, upright like the features'
+# numbers, not a variable. The arrow after the features' numbers, and after "training
+# steps", points along the axis, the way they grow; it is not a formula.
+sae: =B
+sae: =C
+sae: =D
+sae: =E
+sae: =F
+sae: =G
+sae: =H
+sae: =J
+sae: =K
+sae: =L
+sae: =M
+sae: =N
+sae: =O
+sae: =P
+sae: =Q
+sae: =R
+sae: =S
+sae: =T
+sae: =U
+sae: =V
+sae: =W
+sae: =X
+sae: =Y
+sae: =Z
+sae: =b
+sae: =c
+sae: =d
+sae: =e
+sae: =f
+sae: =g
+sae: =h
+sae: =i
+sae: =j
+sae: =k
+sae: =l
+sae: =m
+sae: =n
+sae: =o
+sae: =p
+sae: =q
+sae: =r
+sae: =s
+sae: =t
+sae: =u
+sae: =v
+sae: bold arrows A, B, …
+sae: feature 1 … 
+sae: =training steps →
+
+# Probing a network: "(= class here)" says that a property is the class under another
+# name on this data, and the arrow introduces the verdict on a read-out ("→ not
+# readable here"); neither is a formula.
+probe: (= class
+probe: → 
+
+# A transformer, opened up: the letters are the tokens the model reads and guesses,
+# characters of its row rather than variables, wherever they are named (the sequence,
+# the guesses, the lens, the bars' names, the patching headings); and a head is named
+# by its layer and a letter ("head 2a").
+transformer: =B
+transformer: =C
+transformer: =D
+transformer: =E
+transformer: =F
+transformer: =G
+transformer: =H
+transformer: =J
+transformer: =K
+transformer: =L
+transformer: =M
+transformer: =N
+transformer: =O
+transformer: =P
+transformer: =Q
+transformer: =R
+transformer: =S
+transformer: =T
+transformer: =U
+transformer: =V
+transformer: =W
+transformer: =X
+transformer: =Y
+transformer: =Z
+transformer: =head 1a
+transformer: =head 1b
+transformer: =head 1c
+transformer: =head 1d
+transformer: =head 2a
+transformer: =head 2b
+transformer: =head 2c
+transformer: =head 2d
+transformer: =head 3a
+transformer: =head 3b
+transformer: =head 3c
+transformer: =head 3d
+transformer: patching: 
+transformer: the letter here (
+transformer: what each part adds to the score of 
+transformer: knocked out it gets 
+transformer: without 
+
+# Optimisers on a loss surface: "0 = off" says what the setting 0 means, not an
+# equation; and "100× lower" is a factor in words, as "ten times lower" would be.
+descent: =gradient clipping (0 = off)
+descent: each grid line is 100× lower than the one above
+
+# Fourier epicycles: a share in per cent, a quantity in prose, said to be over 99.9 %
+# (rather than "100 %") while circles are still left out.
+fourier: => 99.9 %
+
+# Graph any function: what may be typed in the formula boxes, written as it is typed
+# (function names, `2x`, `x^2`): text to type, not mathematics to read.
+graph: Functions: sin cos tan exp ln sqrt abs tanh sigmoid relu floor min max and more
+
+# The neural-network scenes and grokking: the arrow after an axis's name points along
+# the axis, the way its values grow; it is not a formula.
+particles: =weight on $x_1$ →
+particles: =$x_1$ →
+signal: =correlation before the layer →
+signal: =weight scale →
+signal: =power of $c$ →
+grokking: =$a$ →
+
+# Finding eigenvalues: ±180° in the captions is an angle in words, a quantity like the
+# 0° and 60° beside it (the turn the chart shows at its top and bottom edges), and is
+# written as they are.
+eigen: The chart under the plane reaches 0° and ±180°
+eigen: it never reaches 0° or ±180°
+
+# The Jacobian lens: the "A" that opens the paper's title, and the paper's appendix A,
+# are a word and a name, not variables.
+lyapunov: "A Mathematical Theory of the Jacobian Lens"
+lyapunov: appendix A
+coherence: "A Mathematical Theory of the Jacobian Lens"
+belief: "A Mathematical Theory of the Jacobian Lens"
+# The belief filter's dials are called A, B and C, as the modes of the scene before it
+# are called 1 and 2: names, in the panel and on the picture alike, not variables.
+belief: dial A
+belief: dial B
+belief: dial C
+belief: =B
+belief: =C
+belief: the lens lists:
+belief: 1-wave
+belief: memory first: C, B, A.
+belief: A flips half a turn every token, B makes a quarter turn, C stands still
+belief: A stands still, B turns a quarter turn
+belief: The order reverses: A, B, C.
+
+# Compressed sensing: the arrow after the name of the chart's axis points along the
+# axis, the way the number of measurements grows; it is not a formula.
+sensing: =measurements $m$ →
+
+# Elimination: "1s" is the plural of the numeral one ("1s on the diagonal"), not a
+# number times a variable s.
+elim: (1s on the diagonal
+
+# High dimensions: the arrows after the names of the axes (r under the chart of the
+# largest |cosine|, the distance before under the projection's) and after the count of
+# factors beyond the chart's right edge point along the axis, the way the numbers
+# grow; they are not formulas.
+highdim: =$r$ →
+highdim: =before →
+highdim: dimensions →
+highdim: beyond 2 →
