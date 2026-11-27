@@ -16,7 +16,7 @@ Example: $S = 12.5$ and $\eta = 0.2$ give $1 - \eta S = -1.5$. Each step flips t
 
 Other rules have other levels. Heavy-ball momentum, $v \leftarrow \beta v + g$ and then $\theta \leftarrow \theta - \eta v$, gives $x_{t+1} = (1 + \beta - \eta\lambda)\, x_t - \beta x_{t-1}$, which shrinks exactly when
 
-$$ \eta\lambda < 2 + 2\beta $$
+$$ 0 < \eta\lambda < 2 + 2\beta $$
 
 for $0 \le \beta < 1$: with $\beta = 0.9$, curvatures up to $3.8/\eta$. Adam divides each parameter's step by a number of its own, $p_i$. With those held fixed, it is momentum (an average, $m \leftarrow \beta_1 m + (1 - \beta_1) g$) on the loss in the weights $\sqrt{p_i}\,\theta_i$, whose Hessian has the eigenvalues of $P^{-1}H$ ($P$ the diagonal matrix of the $p_i$). The largest is the preconditioned sharpness, with the level
 
@@ -28,7 +28,7 @@ Here $H$ is 97 by 97 and is never written out. Its product with a direction $v$ 
 
 ## Two phases, and the slice
 
-Cohen and co-authors (2021) trained many networks by full-batch gradient descent and found, by experiment, two phases. First the sharpness rises while it is under $2/\eta$. Then it reaches $2/\eta$ and stays right at, or just above, it: the edge of stability, where the loss goes up and down from step to step but falls over long stretches. For full-batch Adam they report the same of the preconditioned sharpness, at $38/\eta$ (2022). It is observed, not proved.
+Cohen and co-authors (2021) trained many networks by full-batch gradient descent and typically found two phases. First the sharpness rises while it is under $2/\eta$. Then, unless training finishes first, it reaches $2/\eta$ and stays right at, or just above, it: the edge of stability, where the loss goes up and down from step to step but falls over long stretches. For full-batch Adam, Cohen and co-authors (2022) report the preconditioned sharpness settling around $38/\eta$. It is observed, not proved.
 
 The slice shows what too sharp for the step looks like. Through the middle $c$ of the last two steps, along the sharpest direction $u$ (a unit eigenvector), the loss is
 

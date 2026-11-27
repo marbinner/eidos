@@ -177,6 +177,45 @@ needs its brackets (`sin(x)`, not `sin x`).
   activation, normalisation and where it goes, skips, starting weights, optimiser), keep
   a second design beside it, and compare signals, gradients, the Jacobian's stretch and
   training itself.
+- **Optimisation**: a course of sixteen scenes on why the rules that train networks
+  work, from gradient descent on a bowl to Muon. The rules are in `src/math/optim.rs`,
+  each as its source gives it and open to inspection step by step (gradient descent,
+  momentum, AdaGrad, RMSProp, Adam and AdamW, sign descent, Lion, Muon in its published
+  forms, Shampoo, SOAP and more); what is measured of a training run is in
+  `src/math/terrain.rs` (Hessian-vector products, the sharpness, per-example gradients
+  and noise scales, the noisy quadratic model). Every scene keeps three kinds of
+  sentence apart: mathematics, what it measures on its own small network, and what
+  published work reports, with its scope; the sources are listed in
+  `src/scenes/optim/SOURCES.md`. *Step size and curvature*: a bowl one direction at a
+  time, the factor per step, and the limit of two over the largest curvature.
+  *Momentum*: a map of step and momentum showing where a direction creeps in, rings,
+  flips or flies off, the best pair, and Nesterov's lower limit. *Which way is
+  steepest?*: the steepest step under five rulers, among them the gradient's signs and
+  Newton's step, and the same idea for a weight matrix. *Adam, taken apart*: its two
+  averages, their corrections and epsilon at work on a stream of noisy gradients; a
+  valley lined up with the axes and turned; two kinds of weight decay. *A mini-batch
+  gradient*: every example's gradient on a real network, the noise that shrinks with
+  the batch, and the batch size at which signal and noise are equal. *The noise
+  floor*: four hundred runs of SGD on a bowl beside the exact expected loss, and what a
+  shorter step, a larger batch, a schedule and averaged weights do to the floor. *The
+  noise scale and the critical batch size*: the one-step model, steps traded against
+  examples, the noisy quadratic model under three rules, and a small network measured
+  at every batch size. *Muon*: its step taken apart on a real layer, the polynomial
+  iteration round by round, and what the step does along each direction of the layer's
+  inputs. *Muon's relatives*: fifteen rules given the same gradients, as a family tree.
+  *Normalised steps in noise*: how much of a sign, Adam or Muon step from a mini-batch
+  is useful, for one coordinate and for one layer. *Muon against Adam*: recorded runs
+  of three rules on one network over twelve step sizes, three seeds and two batch
+  sizes, with the shape of each step and of the weights, beside the published record.
+  *Too sharp to stay*: two small losses with a valley of minima, on which a step too
+  long is thrown to flatter ground. *The edge of stability*: a network's sharpness
+  estimated at every step of full-batch training, against the level its step size
+  sets, with momentum, Adam and mini-batches. *Warm-up and decay*: the step size under
+  two ceilings, one from the measured sharpness and one from a model of the noise.
+  *Weight decay and the effective learning rate*: weights that feed a normalisation
+  spiral outwards without decay and settle on a circle with it. *The optimiser
+  playground*: any two rules side by side on one network, with the loss, the steps, the
+  sharpness, the noise scale, an update's singular values and the weights' sizes.
 - **Interpretability**: opening a trained network up. *Superposition*: a toy model
   packing more features than it has dimensions (pairs, a pentagon, polyhedra), and what
   the overlap costs when one feature is switched on alone. *Sparse autoencoders*:

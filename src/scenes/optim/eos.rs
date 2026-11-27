@@ -716,7 +716,7 @@ const TRIALS: [Trial; 7] = [
     },
     Trial {
         button: "the two side by side",
-        caption: r"$\eta = 0.2$ (bright) and $\eta = 0.1$ (faint), each with its own level. Until it reaches its level the shorter step's run is the longer one's at half the pace: its sharpness at step $2t$ is within 2 % of the other's at step $t$. So the longer step meets its level, 10, at step 607, while the shorter goes on rising to its own, 20, at step 2287, and its first leap of the loss comes at step 2576. Over the last 1000 steps each averages 1.02 times its own level: where the sharpness settles is set by the step.",
+        caption: r"$\eta = 0.2$ (bright) and $\eta = 0.1$ (faint), each with its own level. Until it reaches its level the shorter step's run is the longer one's at half the pace: its sharpness at step $2t$ is within 2 % of the other's at step $t$. So the longer step meets its level, 10, at step 607, while the shorter goes on rising to its own, 20, at step 2287, and its first leap of the loss comes at step 2576. Over the last 1000 steps each averages 1.02 times its own level: here, where the sharpness settles is set by the step.",
     },
     Trial {
         button: "a step cut by four",
@@ -728,11 +728,11 @@ const TRIALS: [Trial; 7] = [
     },
     Trial {
         button: "Adam",
-        caption: r"Adam at $\eta = 0.01$. Its level, $38/\eta = 3800$, is for the preconditioned sharpness: the largest eigenvalue of $P^{-1}H$, where $P$ holds the numbers Adam divides each parameter's step by. It starts far above (69 408 at step 1, after one gradient); from step 1000 on it averages 0.99 of 3800, between 0.93 and 1.04 times it, and the loss rises at 42 % of the steps. The sharpness itself (lowest chart) has no level here: it climbs from 6.05 to 43.2 by step 2000, and is 43.3 at the end. Cohen and co-authors (2022) report this for full-batch Adam on image classifiers: the preconditioned sharpness at $38/\eta$, the plain one usually still rising. (Their main runs left out Adam's bias correction; this one keeps it.)",
+        caption: r"Adam at $\eta = 0.01$. Its level, $38/\eta = 3800$, is for the preconditioned sharpness: the largest eigenvalue of $P^{-1}H$, where $P$ holds the numbers Adam divides each parameter's step by. It starts far above (69 408 at step 1, after one gradient); from step 1000 on it averages 0.99 of 3800, between 0.93 and 1.04 times it, and the loss rises at 42 % of the steps. The sharpness itself (lowest chart) has no level here: it climbs from 6.05 to 43.2 by step 2000, and is 43.3 at the end. Cohen and co-authors (2022) report, for full-batch Adam on image classifiers, the preconditioned sharpness at $38/\eta$ and the plain one usually still rising; here the plain one had almost stopped rising by step 2000. (Their main runs left out Adam's bias correction; this one keeps it.)",
     },
     Trial {
         button: "mini-batches",
-        caption: r"Batches of 10 of the 20 points at $\eta = 0.2$ (bright), against all 20 (faint). The whole data's sharpness first falls, to 2.32 at step 283, near the least it can be (2); then it rises, but reaches $2/\eta$ at only 7 steps, between 2292 and 2335, and over the last 1000 steps averages 0.89 of it. The red dots are the batch sharpness, each batch's own curvature along its own gradient (16 batches every 20 steps): over the last 1000 steps 0.80 of $2/\eta$ on average. Andreyev and Beneventano (a 2024 preprint) report that for image classifiers trained with mini-batches and squared error this settles at $2/\eta$; in this run its average stayed lower. With batches of 5 at this step, all five seeds tried ended with every weight near zero: the network gives one constant, and the sharpness is 2, the least it can be on this loss.",
+        caption: r"Batches of 10 of the 20 points at $\eta = 0.2$ (bright), against all 20 (faint). The whole data's sharpness first falls, to 2.32 at step 283, near the least it can be (2); then it rises, but reaches $2/\eta$ at only 7 steps, between 2292 and 2335, and over the last 1000 steps averages 0.89 of it. The red dots are the batch sharpness, each batch's own curvature along its own gradient (16 batches every 20 steps): over the last 1000 steps 0.80 of $2/\eta$ on average. Andreyev and Beneventano (a 2024 preprint) report that for image classifiers trained by plain mini-batch SGD (no momentum, no Adam) with squared error this settles at $2/\eta$; in this run its average stayed lower. With batches of 5 at this step, all five seeds tried ended with every weight near zero: the network gives one constant, and the sharpness is 2, the least it can be on this loss.",
     },
 ];
 
@@ -1916,7 +1916,7 @@ impl Scene for Eos {
     fn ui(&mut self, ui: &mut egui::Ui, _: &Gfx) {
         ui::note(
             ui,
-            r"On a bowl, gradient descent with step $\eta$ blows up along any direction whose curvature is over $2/\eta$ (scenes stepsize and eostoy). A network's loss is not a bowl: its sharpness $S$, the largest eigenvalue of its Hessian, changes as it trains. Cohen and co-authors (2021) trained many networks by full-batch gradient descent and found two phases. First the sharpness rises while it is under $2/\eta$ (they call this progressive sharpening). Then it reaches $2/\eta$ and hovers right at, or just above, it: the edge of stability. There the loss goes up and down from step to step, yet keeps falling over long stretches.",
+            r"On a bowl, gradient descent with step $\eta$ blows up along any direction whose curvature is over $2/\eta$ (scenes stepsize and eostoy). A network's loss is not a bowl: its sharpness $S$, the largest eigenvalue of its Hessian, changes as it trains. Cohen and co-authors (2021) trained many networks by full-batch gradient descent and typically found two phases. First the sharpness rises while it is under $2/\eta$ (they call this progressive sharpening). Then, unless training finishes first, it reaches $2/\eta$ and hovers right at, or just above, it: the edge of stability. There the loss goes up and down from step to step, yet keeps falling over long stretches.",
         );
         ui::note(
             ui,
@@ -2005,13 +2005,13 @@ impl Scene for Eos {
         );
         ui::section(ui, "Words");
         ui::term(ui, "Sharpness:", r"the largest eigenvalue of the Hessian of the training loss, $S$: the curvature along the sharpest direction.");
-        ui::term(ui, "Level:", r"the largest curvature of a bowl on which the rule does not blow up: $2/\eta$ for gradient descent, $(2 + 2\beta)/\eta$ for heavy-ball momentum, $38/\eta$ for Adam (with $\beta_1 = 0.9$ and its preconditioner held fixed).");
+        ui::term(ui, "Level:", r"the largest curvature of a bowl on which the rule does not blow up: $2/\eta$ for gradient descent, $(2 + 2\beta)/\eta$ for heavy-ball momentum written $v \leftarrow \beta v + g$, and for Adam $38/\eta$ on the preconditioned curvature (with $\beta_1 = 0.9$ and its preconditioner held fixed).");
         ui::term(ui, "Progressive sharpening:", "the sharpness rising during training while it is under the level.");
-        ui::term(ui, "Edge of stability:", "the phase in which the sharpness stays at about the level and the loss goes up and down from step to step. Theory for it exists only in special settings or under assumptions; Cohen, Damian and co-authors (2025) derive, by informal reasoning, a central flow that follows a full-batch run averaged over its oscillations, along which the loss never rises.");
+        ui::term(ui, "Edge of stability:", "the phase in which the sharpness stays at about the level and the loss goes up and down from step to step. Theory for it exists only in special settings or under assumptions; Cohen, Damian and co-authors (2025) derive, by informal reasoning, a central flow that follows a full-batch run of gradient descent (or RMSProp; not yet with momentum) averaged over its oscillations, along which the loss never rises.");
         ui::term(ui, "Full batch:", "every step uses the gradient of the whole data set.");
         ui::term(ui, "Preconditioned sharpness:", r"for Adam, which divides each parameter's step by its own number $p_i$: the largest eigenvalue of $P^{-1}H$, $P$ the diagonal matrix of the $p_i$.");
         ui::term(ui, "Batch sharpness:", "for each mini-batch, the curvature of its own loss along its own gradient, averaged over batches.");
-        ui::term(ui, "Residual:", r"how far Lanczos's estimate $\mu$ with its vector $y$ is from an exact eigenvalue and eigenvector, $|Hy - \mu y|$: some eigenvalue lies within it of $\mu$.");
+        ui::term(ui, "Residual:", r"how far Lanczos's estimate $\mu$ with its unit vector $y$ is from satisfying $Hy = \mu y$, $|Hy - \mu y|$: some eigenvalue lies within it of $\mu$.");
 
         ui::section(ui, "Numbers");
         self.numbers(ui);
