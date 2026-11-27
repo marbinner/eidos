@@ -2,6 +2,9 @@
 //! bowl, through momentum, mini-batch noise and Adam, to Muon and its relatives; then
 //! what the curvature of the loss does during training (the edge of stability, warm-up,
 //! weight decay), and a playground that sets any two rules side by side.
+//!
+//! What the course says about published work, and each rule's exact form, comes from
+//! the sources listed in `SOURCES.md` beside this file.
 
 use crate::scenes::prelude::*;
 

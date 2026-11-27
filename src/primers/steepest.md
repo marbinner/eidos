@@ -39,7 +39,7 @@ Its step points the same way, with size $\|g\|_* / L$. With $L$ the most $t^\top
 
 Choosing the ruler is called preconditioning. Turn the bowl and the start together: gradient descent's path turns with them and Newton's still takes one step. The square, the diamond and an ellipse along the axes stay with the axes, so their paths change, unless it is a quarter turn, which takes each onto itself. A square turned by $45°$ is a diamond: those two trade places.
 
-For a weight matrix $G = U S V^\top$, the root of its summed squared entries gives a step along $-G$; its largest entry gives $-\eta \operatorname{sign} G$; the spectral norm, the most it stretches a vector of length 1, gives $-\eta\, U V^\top$: every singular value set to 1. Adam with both running averages off and $\epsilon$ left out steps by $-\eta \operatorname{sign} g$; Muon with its momentum off, an exact $UV^\top$ and no factor for the matrix's shape steps by $-\eta\, UV^\top$. Both are first forms.
+For a weight matrix $G = U S V^\top$, the root of its summed squared entries gives a step along $-G$; its largest entry gives $-\eta \operatorname{sign} G$; the spectral norm, the most it stretches a vector of length 1, gives $-\eta\, U V^\top$: each non-zero singular value set to 1. Adam with running averages off and $\epsilon$ left out steps by $-\eta \operatorname{sign} g$; Muon with its momentum off, an exact $UV^\top$ and no factor for the matrix's shape steps by $-\eta\, UV^\top$. Both are first forms.
 
 # In the picture
 

@@ -719,7 +719,7 @@ struct Trial {
 const TRIALS: [Trial; 7] = [
     Trial {
         button: "a constant step",
-        caption: r"Step $\eta = 0.1$, batches of 4. The runs slide down together while the bowl's pull is far larger than the noise (the descent), then stop getting closer and spread into a cloud that stays (the plateau). Their mean loss settles on the floor the formula gives, 0.0129, 152 times below the start, and is within a tenth of it from step 131 on; after that the steps only stir the cloud.",
+        caption: r"Step $\eta = 0.1$, batches of 4. The runs slide down together while the bowl's pull is far larger than the noise (the descent), then stop getting closer and spread into a cloud that stays (the plateau). Their expected loss (the line) settles on the floor the formula gives, 0.0129, 152 times below the start, and is within a tenth of it from step 131 on; the runs' mean (the dots) follows it within its chance error. After that the steps only stir the cloud.",
     },
     Trial {
         button: "half the step",
@@ -735,7 +735,7 @@ const TRIALS: [Trial; 7] = [
     },
     Trial {
         button: "a drop of the step",
-        caption: r"The first run, with its step divided by 10 at step 400: the cloud shrinks, and the loss goes down to the new floor, 0.00125, within a tenth of it 763 steps after the drop: a short step settles slowly. The faint line that falls steeply at the drop multiplies the batch by 10 instead: floor 0.00129, reached 75 steps after the drop, with the same examples (40 a step). Smith and co-authors (2018) did this with image classifiers trained by SGD, with momentum, and by Adam: the curves per epoch matched those of decaying the step, with fewer steps; they grew the batch only to about a tenth of the data set.",
+        caption: r"The first run, with its step divided by 10 at step 400: the cloud shrinks, and the loss goes down to the new floor, 0.00125, within a tenth of it 763 steps after the drop: a short step settles slowly. The faint line that falls steeply at the drop multiplies the batch by 10 instead: floor 0.00129, reached 75 steps after the drop, using 40 examples a step: about as many in all (3000) as the drop of the step needs (3052). Smith and co-authors (2018) did this with image classifiers trained by SGD, with momentum, and by Adam: the curves per epoch matched those of decaying the step, with fewer steps; they grew the batch only to about a tenth of the data set.",
     },
     Trial {
         button: "averaged weights",
@@ -1969,7 +1969,7 @@ impl Scene for NoiseFloor {
         ui::equation(ui, r"\frac{\eta\,\sigma^2}{2B\,(2 - \eta\lambda)} \approx \frac{\eta\,\sigma^2}{4B}");
         ui::note(
             ui,
-            r"The rule is exact here because the noise is the same wherever the weights are. A network's is not: it changes as the weights do. Where a model can fit every example exactly, every example's gradient is zero at the bottom, the noise vanishes there, and a constant step does converge (Ma, Bassily and Belkin, 2018, for least squares).",
+            r"The rule is exact here because the noise is the same wherever the weights are. A network's is not: it changes as the weights do. Where a model can fit every example exactly, every example's gradient is zero at the bottom, the noise vanishes there, and a small enough constant step does converge (Ma, Bassily and Belkin, 2018, proved this for least squares).",
         );
 
         ui::section(ui, "Things to try");
@@ -1985,7 +1985,7 @@ impl Scene for NoiseFloor {
         if ui::slider_log(ui, r"step size $\eta$", &mut eta, LEAST_ETA as f32..=MOST_ETA as f32) {
             s.eta = eta as f64;
         }
-        ui::note(ui, r"What the gradient is multiplied by in a step (the learning rate). Over $2/\lambda_1 = 2$ the sharp direction flies off.");
+        ui::note(ui, r"What the gradient is multiplied by in a step (the learning rate). Over $2/\lambda_1 = 2$ (with momentum $\beta$, over $(2 + 2\beta)/\lambda_1$) the sharp direction flies off.");
         ui::slider_int_log(ui, "batch size $B$", &mut s.batch, 1..=MOST_BATCH);
         let mut beta = s.beta as f32;
         if ui::slider(ui, r"momentum $\beta$", &mut beta, 0.0..=MOST_BETA as f32) {

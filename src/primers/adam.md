@@ -24,7 +24,7 @@ For a gradient that never changes, $\hat m_t = g$ and $\hat v_t = g^2$ exactly, 
 
 $$ \Delta w_t = -\eta\, \frac{\hat m_t}{\sqrt{\hat v_t} + \varepsilon} $$
 
-Here $\varepsilon$, $10^{-8}$ by default, keeps the divisor from being 0. Multiply every gradient by a number $c$: $\hat m$ is multiplied by $c$ and $\sqrt{\hat v}$ by $|c|$, so the step does not change while $\sqrt{\hat v}$ stays far above $\varepsilon$. Far below it, the divisor is about $\varepsilon$ alone and the step is $\eta \hat m/\varepsilon$: gradient descent with momentum.
+Here $\varepsilon$, $10^{-8}$ by default, keeps the divisor from being 0. Multiply every gradient by a number $c > 0$: $\hat m$ and $\sqrt{\hat v}$ are both multiplied by $c$, so the step does not change while $\sqrt{\hat v}$ stays far above $\varepsilon$. Far below it, the divisor is about $\varepsilon$ alone and the step is $-\eta \hat m/\varepsilon$: gradient descent with momentum.
 
 Example, with $g_1 = 2$: $m_1 = 0.1 \times 2 = 0.2$ and $v_1 = 0.001 \times 4 = 0.004$. Corrected, $\hat m_1 = 0.2/0.1 = 2$ and $\hat v_1 = 0.004/0.001 = 4$, so the first step is $\eta \times 2/\sqrt 4 = \eta$, whatever $g_1$ was. Without the corrections it is $0.2/\sqrt{0.004} = 3.16$ times $\eta$.
 
@@ -34,11 +34,11 @@ Let the gradient be a steady part $\bar g$ plus noise of spread $\sigma$, both c
 
 $$ \frac{\hat m}{\sqrt{\hat v}} \approx \frac{\bar g}{\sqrt{\bar g^2 + \sigma^2}} $$
 
-which lies between $-1$ and 1. With little noise it is close to $\pm 1$: the weight moves by about $\eta$ in the direction of its gradient's sign, which is sign descent. With much noise it is close to $\bar g/\sigma$, which is small: Adam brakes a weight whose gradients are mostly noise. For $\bar g = 0.1$ and $\sigma = 1$ it is $0.1/\sqrt{1.01} = 0.0995$.
+which lies between $-1$ and 1. With little noise it is close to $\pm 1$: the weight moves by about $\eta$ against its gradient's sign, which is sign descent. With much noise it is close to $\bar g/\sigma$, which is small: Adam brakes a weight whose gradients are mostly noise. For $\bar g = 0.1$ and $\sigma = 1$ it is $0.1/\sqrt{1.01} = 0.0995$.
 
 ## One divisor for every weight
 
-Each weight has its own $v$, so each axis is rescaled on its own. That suits a valley steep along one axis and shallow along the other, and not the same valley turned between them: in the scene Adam needs 101 steps for the first and 379 for the second. It also changes weight decay. Added to the gradient as $\lambda w$, the decay is divided by $\sqrt{\hat v}$ with the rest, so, while $\lambda w$ is small next to a weight's gradients, a weight with large gradients is hardly decayed. AdamW instead takes $\eta \lambda w$ off every weight directly.
+Each weight has its own $v$, so each axis is rescaled on its own. That suits a valley steep along one axis and shallow along the other, and not the same valley turned between them: in the scene Adam needs 101 steps for the first and 379 for the second. It also changes weight decay. Added to the gradient as $\lambda w$, the decay is divided by $\sqrt{\hat v}$ with the rest, so, while $\lambda w$ is small next to a weight's gradients, a weight with large gradients is hardly decayed. AdamW, as PyTorch writes it, takes $\eta \lambda w$ off every weight directly.
 
 # In the picture
 

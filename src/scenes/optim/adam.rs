@@ -487,7 +487,7 @@ const OPENING: Setting = Setting {
 const TRIALS: [Trial; 7] = [
     Trial {
         button: "a steady gradient",
-        caption: r"The gradient is about 1 at every step, with a little noise. Adam's first step is exactly $\eta$: with the corrections, $\hat m_1 = g_1$ and $\hat v_1 = g_1^2$, so it is $\eta\, g_1/|g_1|$, whatever $g_1$ is. The later steps stay between 0.94 and 1.04 of $\eta$: with little noise $\hat m/\sqrt{\hat v}$ is close to 1, and Adam moves the weight by about $\eta$ in the direction of the gradient's sign, which is sign descent. AdaGrad (green) adds up the squares and never forgets them: with a steady gradient its step $t$ is $1/\sqrt t$ of its learning rate, a tenth of it by step 100.",
+        caption: r"The gradient is about 1 at every step, with a little noise. Adam's first step is exactly $\eta$: with the corrections, $\hat m_1 = g_1$ and $\hat v_1 = g_1^2$, so it is $\eta\, g_1/|g_1|$, whatever $g_1$ is. The later steps stay between 0.94 and 1.04 of $\eta$: with little noise $\hat m/\sqrt{\hat v}$ is close to 1, and Adam moves the weight by about $\eta$ against the gradient's sign, which is sign descent. AdaGrad (green) adds up the squares and never forgets them: with a steady gradient its step $t$ is $1/\sqrt t$ of its learning rate, a tenth of it by step 100.",
         setting: Setting { mean: 1.0, noise: 0.1, steps: 200, adagrad: true, ..OPENING },
     },
     Trial {
@@ -512,7 +512,7 @@ const TRIALS: [Trial; 7] = [
     },
     Trial {
         button: "a valley, lined up and turned",
-        caption: r"A long valley, a hundred times steeper across than along: on the left lined up with the axes, on the right turned by 45°. Gradient descent (cyan, at the fixed step that suits this valley best, $2/101$) takes the same path in both, turned, and needs 231 steps to bring the loss to a ten-thousandth of where it started. Adam ($\eta = 0.05$) divides each coordinate by its own $\sqrt{\hat v}$. Lined up, that treats the steep and the shallow direction apart, and it needs 101 steps; turned, each coordinate sees both directions mixed, and it needs 379 (at 90° it is lined up again: 101). A ruler that rescales each coordinate (scene steepest) fits a valley lined up with the axes, not one turned. Drag the blue dot to turn the valley.",
+        caption: r"A long valley, a hundred times steeper across than along: on the left lined up with the axes, on the right turned by 45°. Gradient descent (cyan, at the fixed step with the best worst-case rate on this valley, $2/101$) takes the same path in both, turned, and needs 231 steps to bring the loss to a ten-thousandth of where it started. Adam ($\eta = 0.05$) divides each coordinate by its own $\sqrt{\hat v}$. Lined up, that treats the steep and the shallow direction apart, and it needs 101 steps; turned, each coordinate sees both directions mixed, and it needs 379 (at 90° it is lined up again: 101). A ruler that rescales each coordinate (scene steepest) fits a valley lined up with the axes, not one turned. Drag the blue dot to turn the valley.",
         setting: Setting { pair: Pair::Valley, angle: 45.0, eta: 0.05, ..OPENING },
     },
     Trial {
@@ -1099,7 +1099,7 @@ impl Scene for Apart {
             s.c.eps = eps as f64;
         }
         ui::checkbox(ui, &mut s.c.corrected, "corrections for the start at zero");
-        ui::note(ui, r"How large can a step be? Kingma and Ba (2015) call it approximately bounded by $\eta$: in the common case $|\hat m/\sqrt{\hat v}|$ is about 1 at most. Their bound for the sparsest case, a gradient after a long run of zeros, is $(1-\beta_1)/\sqrt{1-\beta_2}$ times $\eta$: 3.16 with the defaults. A gradient that grows can pass it: 'a jump' with 3000 steps shown, steady part 1 and noise 0.1 gives 4.20, and the most any gradients can give, long after the start, is $(1-\beta_1)/\sqrt{(1-\beta_2)(1-\beta_1^2/\beta_2)} = 7.27$.");
+        ui::note(ui, r"How large can a step be? Kingma and Ba (2015) call it approximately bounded by $\eta$: in the common case $|\hat m/\sqrt{\hat v}|$ is about 1 at most. They give $(1-\beta_1)/\sqrt{1-\beta_2}$ times $\eta$, 3.16 with the defaults, as an upper bound that only the sparsest case reaches, a gradient after a long run of zeros. A gradient that grows can pass it: 'a jump' with 3000 steps shown, steady part 1 and noise 0.1 gives 4.20. Long after the start, with $\varepsilon$ left out and $\beta_1^2 < \beta_2$ (as with the defaults), steps can come as close as one likes to $(1-\beta_1)/\sqrt{(1-\beta_2)(1-\beta_1^2/\beta_2)} = 7.27$ times $\eta$, when each gradient is $\beta_2/\beta_1$ times the one before; with $\beta_1^2 \ge \beta_2$ there is no bound at all.");
         ui::note(ui, r"Some code, and Kingma and Ba's own second form, fold the corrections into the step size and add $\varepsilon$ to $\sqrt{v}$ before correcting: the same steps, except while $\sqrt{\hat v}$ is not far above $\varepsilon$ early on.");
 
         ui::section(ui, "Beside Adam's step");
@@ -1151,7 +1151,7 @@ impl Scene for Apart {
         ui::term(ui, "Running average:", r"$m_t = \beta m_{t-1} + (1-\beta) g_t$: each new value counts $1 - \beta$, and older ones fade by a factor $\beta$ a step.");
         ui::term(ui, "Corrections for the start at zero:", r"$m$ and $v$ start at 0, which leaves them too small early on by the factor $1 - \beta^t$; dividing by it gives $\hat m$ and $\hat v$, exactly right for a steady gradient.");
         ui::term(ui, r"$\varepsilon$:", r"a small number added to the divisor so that it is never 0; $10^{-8}$ by default.");
-        ui::term(ui, "Sign descent:", "moving every weight by the same amount in the direction of the sign of its gradient, whatever the gradient's size (scene steepest).");
+        ui::term(ui, "Sign descent:", "moving every weight by the same amount against the sign of its gradient, whatever the gradient's size (scene steepest).");
         ui::term(ui, "Signal-to-noise ratio:", r"Kingma and Ba's name, 'with a slight abuse of terminology', for $\hat m/\sqrt{\hat v}$. It averages about $\bar g/\sqrt{\bar g^2 + \sigma^2}$, which lies between $-1$ and 1, and not $\bar g/\sigma$.");
         ui::term(ui, "Weight decay:", r"shrinking every weight towards 0 a little at each step, by $\lambda$ times the weight.");
         ui::term(ui, "L2 penalty:", r"$\tfrac12 \lambda w^2$ added to the loss, which adds $\lambda w$ to the gradient.");
@@ -1760,7 +1760,7 @@ impl Apart {
         if let Some((min, max)) = lay.notes {
             let text = match s.pair {
                 Pair::Valley => format!(
-                    r"The loss is $\tfrac12(a^2 + 100\,b^2)$, with $a$ measured along the valley's floor and $b$ across it. Both walks start at the white ring and run for 2000 steps; the counts are the steps until the loss is a ten-thousandth of where it started. Gradient descent steps $2/101$ times the gradient, the fixed step that suits this valley best; Adam has $\eta = {}$.",
+                    r"The loss is $\tfrac12(a^2 + 100\,b^2)$, with $a$ measured along the valley's floor and $b$ across it. Both walks start at the white ring and run for 2000 steps; the counts are the steps until the loss is a ten-thousandth of where it started. Gradient descent steps $2/101$ times the gradient, the fixed step with the best worst-case rate on this valley; Adam has $\eta = {}$.",
                     sci(s.eta)
                 ),
                 Pair::Decay => format!(

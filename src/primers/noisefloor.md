@@ -1,6 +1,6 @@
 # The idea
 
-On a bowl, gradient descent shrinks the distance to the bottom by the same factor at every step. Stochastic gradient descent (SGD) steps along a mini-batch's gradient instead: the true gradient plus noise. So each step also adds a random kick, and the kicks never stop. With a constant step the runs settle in a cloud whose expected loss is a floor, set by the step and the batch size. On a bowl this is exact, and it gives a clear reason to make the step smaller during training. You need gradient descent on a bowl and the idea of a variance.
+On a bowl, gradient descent shrinks the distance to the bottom along each of the bowl's directions by a fixed factor every step. Stochastic gradient descent (SGD) steps along a mini-batch's gradient instead: the true gradient plus noise. So each step also adds a random kick, and the kicks never stop. With a constant step the runs settle in a cloud whose expected loss is a floor, set by the step and the batch size. On this bowl it is exact and gives a clear reason to make the step smaller during training. You need gradient descent on a bowl and the idea of a variance.
 
 # The mathematics
 

@@ -72,7 +72,7 @@ impl Ruler {
     fn rule(self) -> &'static str {
         match self {
             Ruler::Round => "gradient descent",
-            Ruler::Square => "sign descent",
+            Ruler::Square => "steps along the signs",
             Ruler::Diamond => "one coordinate at a time",
             Ruler::Bowl => "Newton's step",
             Ruler::Axes => "diagonal scaling",
@@ -1269,7 +1269,7 @@ impl Scene for Steepest {
     fn ui(&mut self, ui: &mut egui::Ui, _: &Gfx) {
         ui::note(ui, r"Gradient descent steps along $-g$, minus the gradient, and $-g$ is often called the steepest way down. Steepest means: of all the steps of one size, the one that lowers the loss most. Near the point $w$ the loss is, to first order, a tilted plane, $f(w + \Delta) \approx f(w) + g \cdot \Delta$, so the steepest step is the point of the shape of all steps of size at most $\eta$ that lies lowest on that plane:");
         ui::equation(ui, r"\Delta^* = \argmin_{\|\Delta\| \le \eta} \; g \cdot \Delta");
-        ui::note(ui, r"What size means is a choice, a ruler $\|\cdot\|$, and each ruler gives its own answer. Several well-known optimisers are this one rule under different rulers (see a weight matrix, below).");
+        ui::note(ui, r"What size means is a choice, a ruler $\|\cdot\|$, and each ruler gives its own answer. Several well-known optimisers, some only with their running averages switched off, are this one rule under different rulers (see a weight matrix, below).");
 
         ui::section(ui, "Things to try");
         for (k, trial) in TRIALS.iter().enumerate() {
@@ -1344,7 +1344,7 @@ impl Scene for Steepest {
         ui::term(ui, "$L$:", r"the most the bowl curves over a step of size 1, the largest $t^\top H t$ with $\|t\| = 1$; for length, the largest eigenvalue of $H$.");
         ui::term(ui, "Preconditioning:", r"changing the ruler. Under $\sqrt{\Delta^\top P \Delta}$ the step that makes $g \cdot \Delta + \tfrac{1}{2\eta} \Delta^\top P \Delta$ least is $-\eta P^{-1} g$. Adam's step, $-\eta\, \hat m / (\sqrt{\hat v} + \epsilon)$, has this form, with $P$ diagonal, $\sqrt{\hat v} + \epsilon$ along it, and its average $\hat m$ in place of $g$ (scene adam).");
         ui::term(ui, r"$\operatorname{sign} g$:", r"each entry replaced by $+1$ or $-1$, by its sign (and $0$ by $0$).");
-        ui::term(ui, r"Spectral norm, $UV^\top$:", r"the largest singular value of a matrix. From $G = USV^\top$, $UV^\top$ keeps $G$'s singular vectors and sets every singular value to 1 (scene polar).");
+        ui::term(ui, r"Spectral norm, $UV^\top$:", r"the largest singular value of a matrix. From $G = USV^\top$, $UV^\top$ keeps $G$'s singular vectors and sets every singular value that is not 0 to 1 (scene polar).");
 
         ui::section(ui, "Numbers");
         let s = self.shown();
@@ -1974,8 +1974,8 @@ fn tip_name(r: Ruler, set: Set, form: Form, short: bool) -> &'static str {
 fn captions(k: usize) -> &'static str {
     const C: [&str; 5] = [
         r"The point goes once round a round bowl, so the gradient $g$ turns steadily. The cyan step, along $-g$, turns with it. The orange one stays on a corner of the square, $-\eta \operatorname{sign} g$, and the pink one on a vertex of the diamond, each until it jumps to the next. The point stops where they jump: on each axis, where one entry of $g$ is $0$ and a whole edge of the square is steepest, and on each diagonal, where $|g_1| = |g_2|$ and a whole edge of the diamond is.",
-        r"A valley along the $x$ axis, 10 times as curved across as along. In the paths chart each ruler takes steps of size $\|g\|_* / L$ until the loss is below a millionth of its start: gradient descent needs 62, sign descent 31, the diamond 63, and both ellipses 1. The purple one along the axes is the green one here: for a bowl lined up with the axes, its diagonal is all of $H$.",
-        r"The same valley and start, turned by 45°. Gradient descent takes the same 62 steps, turned with the picture: the circle looks the same turned. The green ellipse turns with the bowl and still needs 1. The purple one cannot turn: the bowl's diagonal is now the same in both coordinates, so it is a circle and takes gradient descent's 62. Sign descent now needs 63 and the diamond 31, the other way round: turned by 45°, a square is a diamond.",
+        r"A valley along the $x$ axis, 10 times as curved across as along. In the paths chart each ruler takes steps of size $\|g\|_* / L$ until the loss is below a millionth of its start: gradient descent needs 62, the square's steps (along $-\operatorname{sign} g$, of size $\|g\|_1/L$, not the fixed size of sign descent) 31, the diamond 63, and both ellipses 1. The purple one along the axes is the green one here: for a bowl lined up with the axes, its diagonal is all of $H$.",
+        r"The same valley and start, turned by 45°. Gradient descent takes the same 62 steps, turned with the picture: the circle looks the same turned. The green ellipse turns with the bowl and still needs 1. The purple one cannot turn: the bowl's diagonal is now the same in both coordinates, so it is a circle and takes gradient descent's 62. The square's steps now need 63 and the diamond's 31, the other way round: turned by 45°, a square is a diamond.",
         r"The green ellipse has the shape of the bowl's level lines. Its steepest step points straight at the bottom, and in the second form it is Newton's step, $-H^{-1} g$, which lands there: 1 step in the paths chart. The bowl now turns a quarter turn under the point: the ellipse turns with it, the gradient swings round, and the step still ends on the bottom all the way.",
         r"A layer's gradient $G$, the average over 8 examples of one outer product each. Its singular values are $0.37$, $0.08$ and $3 \times 10^{-4}$ (cyan, each over the largest): a gradient step moves the weights mostly along one direction, and hardly at all along the third. Under the largest entry the steepest step is $\operatorname{sign} G$ (orange), with $2.56$, $1.56$ and $0$: two directions, and none at all along the third. Under the spectral norm it is $UV^\top$ (blue): $1$, $1$ and $1$, every direction alike. With 1 example $G$ has rank 1, and so do its signs and $UV^\top$.",
     ];
