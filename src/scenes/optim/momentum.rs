@@ -550,7 +550,7 @@ const DIRS: usize = 5;
 const TRIALS: [Trial; 6] = [
     Trial {
         label: "plain descent on a long valley",
-        look_for: r"Momentum 0, so heavy ball is plain descent and the runs are one. The step $\eta = 1.9$ is just under plain descent's limit 2 (the sharpest curvature is 1). The five directions sit on the bottom of the map: the sharpest, at $\eta\lambda = 1.9$, flips side every step and shrinks by 0.9 (the zigzag across the valley); the flattest, at 0.019, creeps in by 0.981 a step (the crawl along it). The flattest is ringed: it sets the count, 278 steps to bring the loss to a millionth of its start.",
+        look_for: r"Momentum 0, so heavy ball is plain descent and the runs are one. The step $\eta = 1.9$ is just under plain descent's limit 2 (the sharpest curvature is 1). The five directions sit on the bottom of the map: the sharpest, at $\eta\lambda = 1.9$, flips side every step and shrinks by 0.9 (the zigzag across the valley); the flattest, at 0.019, creeps in by 0.981 a step (the crawl along it). The flattest carries the white ring: it sets the count, 278 steps to bring the loss to a millionth of its start.",
         rule: Rule::Heavy,
         eta: 1.9,
         beta: 0.0,
@@ -561,7 +561,7 @@ const TRIALS: [Trial; 6] = [
     },
     Trial {
         label: "the same step with momentum 0.9",
-        look_for: r"The same $\eta = 1.9$ with $\beta = 0.9$: every direction is now in the band where the eigenvalues are a complex pair, and every one shrinks by exactly $\sqrt{0.9} = 0.949$ a step, whatever its curvature (all five are ringed). The sharpest no longer flips: it rings, and for longer than plain descent's zigzag, which shrank by 0.9. The flattest speeds up from 0.981 to 0.949 a step, and the loss reaches a millionth in 131 steps instead of 278.",
+        look_for: r"The same $\eta = 1.9$ with $\beta = 0.9$: every direction is now in the band where the eigenvalues are a complex pair, and every one shrinks by exactly $\sqrt{0.9} = 0.949$ a step, whatever its curvature (all five carry the white ring). The sharpest no longer flips: it rings, and for longer than plain descent's zigzag, which shrank by 0.9. The flattest speeds up from 0.981 to 0.949 a step, and the loss reaches a millionth in 131 steps instead of 278.",
         rule: Rule::Heavy,
         eta: 1.9,
         beta: 0.9,
@@ -572,7 +572,7 @@ const TRIALS: [Trial; 6] = [
     },
     Trial {
         label: "the best pair for this bowl",
-        look_for: r"For curvatures from $\mu = 0.01$ to $L = 1$ the best fixed pair is $\beta = ((\sqrt\kappa - 1)/(\sqrt\kappa + 1))^2 = 0.669$ and $\eta = 4/(\sqrt L + \sqrt\mu)^2 = 3.31$. It puts the flattest direction on the band's left edge and the sharpest on its right edge: every direction shrinks by $\sqrt\beta = 0.818$ a step. Plain descent takes its own best step here, $2/(\mu + L) = 1.98$, and shrinks its worst two by 0.980. An error then shrinks $e$-fold in about $\sqrt\kappa/2 = 5$ steps against $\kappa/2 = 50$; to a millionth, 57 steps against 337. Not ten times fewer: momentum's loss first rises ninefold (at step 4) and is above plain descent's until step 19. The best pair gives the best rate in the long run, not the fastest start.",
+        look_for: r"For curvatures from $\lambda_{\min} = 0.01$ to $\lambda_{\max} = 1$ the best fixed pair is $\beta = ((\sqrt\kappa - 1)/(\sqrt\kappa + 1))^2 = 0.669$ and $\eta = 4/(\sqrt{\lambda_{\max}} + \sqrt{\lambda_{\min}})^2 = 3.31$. It puts the flattest direction on the band's left edge and the sharpest on its right edge: every direction shrinks by $\sqrt\beta = 0.818$ a step. Plain descent takes its own best step here, $2/(\lambda_{\min} + \lambda_{\max}) = 1.98$, and shrinks its worst two by 0.980. An error then shrinks $e$-fold in about $\sqrt\kappa/2 = 5$ steps against $\kappa/2 = 50$; to a millionth, 57 steps against 337. Not ten times fewer: momentum's loss first rises ninefold (at step 4) and is above plain descent's until step 19. The best pair gives the best rate in the long run, not the fastest start.",
         rule: Rule::Heavy,
         // (set from the formulas by `set_up`)
         eta: 0.0,
@@ -1286,7 +1286,7 @@ impl Scene for Momentum {
         ui::term(ui, "Creeps in, rings, flips:", r"two real eigenvalues, both positive: it slides in without crossing the bottom. A complex pair $r(\cos\theta \pm i \sin\theta)$: it turns by $\theta$ a step as it shrinks by $r$, overshooting and swinging back. The larger one negative: it changes side every step.");
         ui::term(ui, "Critical:", r"the two eigenvalues equal, at $\eta\lambda = (1 - \sqrt\beta)^2$, the edge between creeping in and ringing. They are equal again at $(1 + \sqrt\beta)^2$, both $-\sqrt\beta$.");
         ui::term(ui, r"Condition number $\kappa$:", r"the sharpest curvature over the flattest, $\lambda_{\max}/\lambda_{\min}$.");
-        ui::term(ui, "Momentum as an average:", r"$v_t = g_t + \beta g_{t-1} + \beta^2 g_{t-2} + \cdots$, the recent gradients weighted by powers of $\beta$: about the last $1/(1 - \beta)$ of them count. On a steady slope $g$ it builds up to $g/(1 - \beta)$, a step $1/(1 - \beta)$ times a plain one. With noisy gradients the averaging matters too (later scenes).");
+        ui::term(ui, "Momentum as an average:", r"$v_{t+1} = g_t + \beta g_{t-1} + \beta^2 g_{t-2} + \cdots$ with $g_t = \nabla L(w_t)$, the recent gradients weighted by powers of $\beta$: about the last $1/(1 - \beta)$ of them count. On a steady slope $g$ it builds up to $g/(1 - \beta)$, a step $1/(1 - \beta)$ times a plain one. With noisy gradients the averaging matters too (later scenes).");
         ui::term(ui, "The other way of writing it:", r"as an average, $m \leftarrow \beta m + (1 - \beta)\,g$, $w \leftarrow w - \eta' m$, the form of Adam's first moment. It takes the same steps when $\eta' = \eta/(1 - \beta)$, so its limit reads $\eta'\lambda < (2 + 2\beta)/(1 - \beta)$: 38 for $\beta = 0.9$.");
 
         ui::section(ui, "Numbers");

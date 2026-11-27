@@ -6,7 +6,7 @@ In a long, narrow valley gradient descent zigzags across the floor and crawls al
 
 ## One direction, two numbers
 
-On a bowl $L = \tfrac12 \sum_i \lambda_i x_i^2$ every direction moves on its own: $x$ is the distance from the bottom along it and $\lambda$ its curvature, so its slope is $\lambda x$. Heavy-ball momentum, as PyTorch writes it, keeps a velocity $v$:
+On a bowl $L = \tfrac12 \sum_i \lambda_i x_i^2$ every direction moves on its own: $x$ is the distance from the bottom along it and $\lambda$ its curvature, so its slope is $g = \lambda x$. Heavy-ball momentum, as PyTorch writes it, keeps a velocity $v$:
 
 $$ v_{t+1} = \beta v_t + \lambda x_t, \qquad x_{t+1} = x_t - \eta\, v_{t+1} $$
 
@@ -30,7 +30,7 @@ With $\beta = 0.9$ the limit is $\eta\lambda = 3.8$, against 2 without momentum.
 
 ## The best pair
 
-Let the curvatures run from $\mu$ to $L$, with $\kappa = L/\mu$. Put the flattest direction on the band's left edge and the sharpest on its right edge: $\eta\mu = (1 - \sqrt\beta)^2$ and $\eta L = (1 + \sqrt\beta)^2$. Dividing, $\sqrt\kappa = (1 + \sqrt\beta)/(1 - \sqrt\beta)$, so every direction shrinks by
+Let the curvatures run from $\lambda_{\min}$ to $\lambda_{\max}$ ($\kappa = \lambda_{\max}/\lambda_{\min}$). Put the flattest direction on the band's left edge and the sharpest on its right edge: $\eta\lambda_{\min} = (1 - \sqrt\beta)^2$ and $\eta\lambda_{\max} = (1 + \sqrt\beta)^2$. Dividing, $\sqrt\kappa = (1 + \sqrt\beta)/(1 - \sqrt\beta)$, so every direction shrinks by
 
 $$ \sqrt\beta = \frac{\sqrt\kappa - 1}{\sqrt\kappa + 1} \qquad \text{against} \qquad \frac{\kappa - 1}{\kappa + 1} $$
 
@@ -38,7 +38,7 @@ for plain descent at its best fixed step. For $\kappa = 100$: $9/11 = 0.818$ aga
 
 ## An average of gradients, and Nesterov
 
-Unrolled, $v_t = g_t + \beta g_{t-1} + \beta^2 g_{t-2} + \cdots$: about the last $1/(1 - \beta)$ gradients count. On a steady slope it builds up to $g/(1 - \beta)$: a direction with $\eta\lambda$ well below $(1 - \beta)^2$ moves as if the step were $1/(1 - \beta)$ times longer. Nesterov's form takes the gradient a step ahead; on a bowl its limit is $\eta\lambda < (2 + 2\beta)/(1 + 2\beta)$, which is 1.357 for $\beta = 0.9$, below plain descent's 2.
+Unrolled, $v_{t+1} = g_t + \beta g_{t-1} + \beta^2 g_{t-2} + \cdots$: about the last $1/(1 - \beta)$ gradients count. On a steady slope it builds up to $g/(1 - \beta)$: a direction with $\eta\lambda$ well below $(1 - \beta)^2$ moves as if the step were $1/(1 - \beta)$ times longer. Nesterov's form takes the gradient a step ahead; on a bowl its limit is $\eta\lambda < (2 + 2\beta)/(1 + 2\beta)$, which is 1.357 for $\beta = 0.9$, below plain descent's 2.
 
 # In the picture
 

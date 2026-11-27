@@ -1,6 +1,6 @@
 # The idea
 
-Gradient descent takes steps of a fixed size $\eta$ against the gradient. How long may a step be, and how many does the descent need? On a bowl, a loss that is quadratic, both have exact answers, from one number per direction. You need the Hessian and its eigenvalues (the scenes "quadform" and "hessian").
+Gradient descent steps against the gradient, scaled by a fixed step size $\eta$. How long may a step be, and how many does the descent need? On a bowl, a loss that is quadratic, both have exact answers, from one number per direction. You need the Hessian and its eigenvalues (the scenes "quadform" and "hessian").
 
 # The mathematics
 
@@ -37,13 +37,13 @@ $$ \eta^\ast = \frac{2}{\lambda_{\max} + \lambda_{\min}}, \qquad \max_i |1 - \et
 
 with $\kappa = \lambda_{\max}/\lambda_{\min}$, the condition number. For large $\kappa$ this is about $1 - 2/\kappa$, so shrinking the distance by a factor $e$ takes about $\kappa/2$ steps: the number of steps grows in proportion to $\kappa$.
 
-On a logarithmic scale each direction's part of the loss is a straight line: the steep ones are soon gone, and the long tail is the slowest direction alone.
+On a logarithmic scale each direction's part of the loss is a straight line: the fast ones are soon gone, and the long tail is set by the slowest.
 
 Example: $\lambda_{\max} = 1$, $\lambda_{\min} = 0.1$, $\kappa = 10$. The limit is $2$ and the best step $2/1.1 = 1.82$, with factors $-0.82$ and $+0.82$. Every direction's loss is multiplied by at most $(9/11)^2 = 0.669$ per step, so from any start the loss is a thousand times lower once $t \ge \ln 1000 / (-\ln 0.669) = 17.2$: within 18 steps. For $\kappa = 100$, within 173.
 
 ## A loss that is not a bowl
 
-Near a point, a smooth loss is close to a quadratic whose curvatures are the eigenvalues of the Hessian there, so these rules hold there approximately. One form holds exactly: if the Hessian's largest eigenvalue is at most $\ell$ everywhere, every step shorter than $2/\ell$ lowers the loss (unless the gradient is $0$). A network's curvature, though, changes as it trains: that is for the scenes on the edge of stability.
+Near a minimum, a smooth loss is close to a quadratic whose curvatures are the eigenvalues of the Hessian there, so these rules hold there approximately. One form holds exactly: if the Hessian's largest eigenvalue is at most $\ell$ everywhere, every step shorter than $2/\ell$ lowers the loss (unless the gradient is $0$). A network's curvature, though, changes as it trains: that is for the scenes on the edge of stability.
 
 # In the picture
 

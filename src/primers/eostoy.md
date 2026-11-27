@@ -1,6 +1,6 @@
 # The idea
 
-Gradient descent with step $\eta$ settles in a bowl only if the bowl's curvature is less than $2/\eta$ (scene "stepsize"). A real loss is not one bowl: its curvature changes from place to place. Here is the smallest loss where that happens, of two weights $a$ and $b$, and what gradient descent does above a minimum too sharp for its step: unless the step is far too long, it is moved along to flatter ground. You need the gradient, the Hessian and its eigenvalues.
+Gradient descent with step $\eta$ settles in a bowl only if the bowl's sharpest curvature is less than $2/\eta$ (scene "stepsize"). A real loss is not one bowl: its curvature changes from place to place. Here is a small loss where that happens, of two weights $a$ and $b$, and what gradient descent does above a minimum too sharp for its step: unless the step is far too long, it is moved along to flatter ground. You need the gradient, the Hessian and its eigenvalues.
 
 # The mathematics
 
@@ -28,7 +28,7 @@ Example: from $(a, b) = (3, 0.35)$, $a^2 - b^2 = 8.8775$, and the floor beneath 
 
 ## How far it goes
 
-Adding the squares instead gives $\lambda = a^2 + b^2$ the step $\lambda \to \lambda(1 + \eta^2 g^2) - 4\eta g\,ab$, a change of $\eta g^2 (\eta\lambda - 4) - 4\eta g$ when $ab = 1 + g$. The last term changes sign at every bounce and nearly cancels over two steps; so, roughly (this is no proof), bouncing lowers $\lambda$ while $\eta\lambda < 4$ and raises it beyond. The scene measures it: from the start above, every step from 0.01 to 0.4395 settles and every longer one is thrown off, and $4/9.1 = 0.4396$.
+Adding the squares instead gives $\lambda = a^2 + b^2$ the step $\lambda \to \lambda(1 + \eta^2 g^2) - 4\eta g\,ab$, a change of $\eta g^2 (\eta\lambda - 4) - 4\eta g$ when $ab = 1 + g$. The last term changes sign at every bounce and largely cancels over the run; so, roughly (this is no proof), bouncing lowers $\lambda$ while $\eta\lambda < 4$ and raises it beyond. The scene measures it: from the start above, every step tried from 0.01 to 2 settles up to 0.4395 and is thrown off beyond, and $4/9.1 = 0.4396$.
 
 The second loss, $\tfrac14(1 - a^2b^2)^2$, has $g = ab(a^2b^2 - 1)$, the same factor on $a^2 - b^2$, and a floor twice as sharp. In the scene's runs its swing stays small, and it creeps along to a little under $2/\eta$, where the first loss goes well inside.
 
