@@ -59,7 +59,8 @@ const MOST_COMPARED: usize = 20_000;
 /// An expected loss above this is off every chart: the run has blown up.
 const BLOWN: f64 = 1e12;
 /// The share of a two-dimensional Gaussian cloud inside the ellipse of two standard
-/// deviations: 1 − e⁻².
+/// deviations: 1 − e⁻². (The tests hold the drawn ring to it.)
+#[cfg(test)]
 const INSIDE: f64 = 0.864_664_716_763_387_3;
 
 /// How one example's gradient noise is spread over the two directions.
@@ -269,7 +270,9 @@ fn small_step_floor(eta: f64, batch: f64, beta: f64, noise: Noise) -> f64 {
 
 /// What an exponential average of the iterates, γ kept a step, multiplies plain SGD's
 /// floor by in a direction of curvature λ: (1 − γ)(1 + aγ)/((1 + γ)(1 − aγ)) with
-/// a = 1 − ηλ (Zhang and co-authors' Theorem 2; exact, `noise.md` D2).
+/// a = 1 − ηλ (Zhang and co-authors' Theorem 2; exact, `noise.md` D2). (The tests hold
+/// the recursion's floor to it.)
+#[cfg(test)]
 fn averaging_factor(eta: f64, lambda: f64, gamma: f64) -> f64 {
     let a = 1.0 - eta * lambda;
     (1.0 - gamma) * (1.0 + a * gamma) / ((1.0 + gamma) * (1.0 - a * gamma))

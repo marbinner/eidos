@@ -3,9 +3,6 @@
 //! what the curvature of the loss does during training (the edge of stability, warm-up,
 //! weight decay), and a playground that sets any two rules side by side.
 
-// (Until the scenes are written, nothing uses the heading or the colours.)
-#![allow(dead_code)]
-
 use crate::scenes::prelude::*;
 
 // The scenes of this topic, in the order they appear in the catalogue: a course, to be
@@ -21,25 +18,36 @@ pub const GROUP: &str = "Optimisation";
 // colour it has in the scenes "descent" and "race" (`pal::SERIES` in the order of
 // `nn::Optim::ALL`), so that a visitor who has met it there knows it here.
 /// Plain gradient descent, with the whole data set or with mini-batches (SGD).
+#[allow(dead_code)] // (until every scene of the course is written)
 pub const SGD: Color = pal::SERIES[0];
 /// Gradient descent with momentum (the heavy ball).
+#[allow(dead_code)] // (until every scene of the course is written)
 pub const MOMENTUM: Color = pal::SERIES[1];
 /// Nesterov's momentum.
+#[allow(dead_code)] // (until every scene of the course is written)
 pub const NESTEROV: Color = pal::SERIES[2];
 /// AdaGrad.
+#[allow(dead_code)] // (until every scene of the course is written)
 pub const ADAGRAD: Color = pal::SERIES[3];
 /// RMSProp.
+#[allow(dead_code)] // (until every scene of the course is written)
 pub const RMSPROP: Color = pal::SERIES[4];
 /// Adam and AdamW.
+#[allow(dead_code)] // (until every scene of the course is written)
 pub const ADAM: Color = pal::SERIES[5];
 /// Muon.
+#[allow(dead_code)] // (until every scene of the course is written)
 pub const MUON: Color = pal::SERIES[6];
 
 /// The true gradient: that of the whole data set, the signal a mini-batch estimates.
+#[allow(dead_code)] // (until every scene of the course is written)
 pub const SIGNAL: Color = pal::WHITE;
 /// Noise: what a mini-batch's gradient adds to the true one.
+#[allow(dead_code)] // (until every scene of the course is written)
 pub const NOISE: Color = pal::RED;
 /// Curvature: an eigenvalue of the Hessian, and the sharpness (the largest of them).
+#[allow(dead_code)] // (until every scene of the course is written)
 pub const CURVATURE: Color = pal::GREEN;
 /// A limit that a step size sets, such as the largest curvature gradient descent can bear.
+#[allow(dead_code)] // (until every scene of the course is written)
 pub const LIMIT: Color = pal::YELLOW;
