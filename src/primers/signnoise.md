@@ -1,6 +1,6 @@
 # The idea
 
-Sign descent, Adam and Muon keep the direction of a gradient and throw away its size: sign descent keeps each coordinate's sign, Muon keeps a weight matrix's singular vectors and pushes every singular value towards 1. Trained on mini-batches, they see the true gradient plus noise, and a step that ignores sizes gives the noise's part as much room as the signal's. How much of such a step still points where the whole data's step would, and what do a larger batch or an average over steps buy? You need the idea of a mini-batch gradient (the mean of $B$ examples' gradients), the bell-shaped normal distribution, and singular values.
+Sign descent, Adam and Muon keep a direction and throw away the gradient's size: sign descent keeps each coordinate's sign, Muon keeps a gradient matrix's singular vectors and pushes every singular value towards 1. Trained on mini-batches, they see the true gradient plus noise, and a step that ignores sizes gives the noise's part as much room as the signal's. How much of such a step still points where the whole data's step would, and what do a larger batch or an average over steps buy? You need the idea of a mini-batch gradient (the mean of $B$ examples' gradients), the bell-shaped normal distribution, and singular values.
 
 # The mathematics
 
@@ -12,7 +12,7 @@ $$ P(\text{right sign}) = \Phi(r), \qquad \mathbb{E}\,\operatorname{sign} = 2\Ph
 
 where $\Phi$ is the share of a standard bell below a point. The coordinate's own noise scale $B_i = \sigma^2/g^2$ is the batch at which $r = 1$. Well below it, a sign step is a full-size step whose sign is nearly a coin toss: its mean grows only as $\sqrt{B}$, and its jitter (standard deviation) $\sqrt{1 - (\mathbb{E}\,\operatorname{sign})^2}$ stays near 1. SGD's step is the batch's gradient itself: its mean is right at every batch, and its jitter, $\sigma/\sqrt{B}$, shrinks.
 
-Example: $g/\sigma = 0.0284$ (so $B_i = 1238$) and $B = 16$ give $r = 0.114$. The sign is right with probability $\Phi(0.114) = 0.545$; the sign step is $0.09 \pm 1.00$ in units of the whole data's step, and SGD's is $1 \pm 8.8$.
+Example: $B_i = 1238$ (so $g/\sigma = 0.0284$) and $B = 16$ give $r = 0.114$. The sign is right with probability $\Phi(0.114) = 0.545$; the sign step is $0.09 \pm 1.00$ in units of the whole data's step, and SGD's is $1 \pm 8.8$.
 
 ## Averaging first
 
@@ -22,7 +22,7 @@ $$ \operatorname{Var} m = \frac{1 - \beta}{1 + \beta}\cdot\frac{\sigma^2}{B} $$
 
 So the average is worth a batch $(1 + \beta)/(1 - \beta)$ times larger: 19 at $\beta = 0.9$. In training the weights move meanwhile: this holds at fixed weights.
 
-Adam divides $m$ by $\sqrt{v}$, where $v$ averages squares of single batches' gradients, about $g^2 + \sigma^2/B$. Its numerator is averaged and its denominator is not, so where noise rules its jitter is cut by $\sqrt{(1 - \beta)/(1 + \beta)}$, about 0.23 at $\beta = 0.9$: a small step, not a full-size coin toss.
+Adam divides $m$ by $\sqrt{v}$, where $v$ averages squares of single batches' gradients, about $g^2 + \sigma^2/B$. Its numerator averages batches; its denominator still measures single batches, so where noise rules its jitter is cut by $\sqrt{(1 - \beta)/(1 + \beta)}$, about 0.23 at $\beta = 0.9$: a small step, not a full-size coin toss.
 
 ## A layer of a network
 
@@ -34,7 +34,7 @@ For SGD, $\mathbb{E}\,\langle g_B, G\rangle = |G|^2$ and $\mathbb{E}\,|g_B|^2 = 
 
 $$ u_{\text{SGD}} = \frac{1}{\sqrt{1 + B_{\text{simple}}/B}}, \qquad B_{\text{simple}} = \frac{\operatorname{tr}\Sigma}{|G|^2} $$
 
-Sign descent's useful part averages the expected signs of all the coordinates, the noisy ones counting as much as the clean ones; on this layer it needs a larger batch than SGD's for the same useful part. For Muon no formula is used here: its useful part is measured. One example's gradient of a weight matrix has rank one, so a batch of $B$ has rank at most $B$.
+Sign descent's useful part averages the expected signs of all the coordinates, the noisy ones counting as much as the clean ones; on this layer it needs a larger batch than SGD's for the same useful part. For Muon no formula is used here: its useful part is measured. In this network, one example's gradient of a weight matrix has rank one, so a batch of $B$ has rank at most $B$.
 
 # In the picture
 

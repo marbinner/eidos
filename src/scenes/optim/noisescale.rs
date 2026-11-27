@@ -29,7 +29,7 @@ pub const DEF: SceneDef = SceneDef {
     id: "noisescale",
     title: "The noise scale and the critical batch size",
     group: GROUP,
-    blurb: "Bigger batches allow longer steps until curvature, not noise, is the limit: how many steps a larger batch saves, and the batch size beyond which it saves none.",
+    blurb: "Bigger batches allow longer steps until curvature, not noise, is the limit: how many steps a larger batch saves, and the batch size beyond which it saves almost none.",
     make: |_| Box::new(NoiseScale::create()),
 };
 
@@ -2032,7 +2032,7 @@ impl Scene for NoiseScale {
     fn ui(&mut self, ui: &mut egui::Ui, _: &Gfx) {
         ui::note(
             ui,
-            r"How large should a batch be? A step of SGD costs $B$ examples. A larger batch gives a gradient with less noise, and so allows a longer step, but only until the noise is no longer what limits the step: from there the curvature does, and more examples buy almost nothing. McCandlish, Kaplan and Amodei (2018) made this exact in a model of one step, with the loss replaced by its quadratic approximation. A step $\eta$ along the mean gradient of $B$ independent examples changes the loss, on average, by",
+            r"How large should a batch be? A step of SGD costs $B$ examples. A larger batch gives a gradient with less noise, and so allows a longer step, but only until the noise is no longer what limits the step: from there the curvature does, and more examples buy almost nothing. McCandlish, Kaplan and Amodei (2018) made this exact in a model of one step, with the loss replaced by its quadratic approximation. A step $\eta$ against the mean gradient of $B$ independent examples changes the loss, on average, by",
         );
         ui::equation(ui, r"\mathbb{E}\,\Delta L = -\eta\,|G|^2 + \tfrac12\eta^2\Big(\textcolor{green}{G^\top H G} + \frac{\textcolor{red}{\operatorname{tr}(H\Sigma)}}{B}\Big)");
         ui::note(
@@ -2177,12 +2177,12 @@ impl Scene for NoiseScale {
 
         ui::section(ui, "Critical batch size: whose?");
         ui::note(ui, "The phrase means different things in different papers. A number from one cannot be compared with a number from another without converting.");
-        ui::note(ui, r"McCandlish and co-authors (2018), and Kaplan and co-authors (2020) after them: $B_{\text{crit}} = E_{\min}/S_{\min}$, fitted to runs that follow $(S/S_{\min} - 1)(E/E_{\min} - 1) = 1$; at that batch a run takes twice the fewest steps and twice the fewest examples. This scene's fits use it.");
+        ui::note(ui, r"McCandlish and co-authors (2018), and Kaplan and co-authors (2020) after them: $B_{\text{crit}} = E_{\min}/S_{\min}$ for a chosen target loss, fitted to runs that follow $(S/S_{\min} - 1)(E/E_{\min} - 1) = 1$; at that batch a run takes twice the fewest steps and twice the fewest examples. This scene's fits use it.");
         ui::note(ui, r"Shallue and co-authors (2019) give no single number: the end of perfect scaling, and a maximum useful batch size beyond which the steps stop falling.");
         ui::note(ui, "Zhang and co-authors (2019), for the noisy quadratic model: the phase transition between the regime of perfect scaling and the one insensitive to the batch size.");
         ui::note(ui, r"Ma, Bassily and Belkin (2018), for least squares that fit every point exactly: about $\max_i |x_i|^2/\lambda_1$, with $\lambda_1$ the largest eigenvalue of $\tfrac1n\sum_i x_i x_i^\top$; set by the data, not by the noise at a point.");
         ui::note(ui, "Zhang and co-authors (2025): the largest batch, above the best one, that needs at most 20 % more steps than perfect scaling to reach the best loss of one pass over the data.");
-        ui::note(ui, "Merrill and co-authors (2025): the largest multiple of the batch whose runs, branched from a checkpoint, reach after 2 billion tokens a loss within 0.01 of the smaller batches'.");
+        ui::note(ui, "Merrill and co-authors (2025): the largest multiple of the batch whose runs, branched from a checkpoint with the learning rate scaled up too, reach after 2 billion tokens a loss no more than 0.01 above each smaller batch's.");
         ui::note(ui, "Sato and co-authors (2025), for Muon: the batch that minimises the total number of example gradients in a convergence bound.");
         ui::note(ui, "Essential AI (2025): the largest batch that reaches a given loss with the fewest tokens.");
         ui::note(ui, "Naganuma and co-authors (2026): the batch at which a lower bound on one step's progress reaches a chosen fraction of the full batch's.");

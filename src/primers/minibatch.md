@@ -26,7 +26,7 @@ So the noise's spread, a standard deviation, falls as $1/\sqrt{B}$. If instead t
 
 $$ \operatorname{Cov}(\xi) = \frac{N - B}{B\,(N - 1)}\,\Sigma $$
 
-At $B = N$ that is 0: the batch is the whole data set, and its gradient is $G$.
+At $B = N$ that is 0: the batch is the whole data set.
 
 ## Signal and noise
 
@@ -50,12 +50,12 @@ A picture shows a plane: the window is spanned by $e_1 = G/|G|$ and by $e_2$, th
 
 ## It changes as the network learns
 
-$B_{\text{simple}}$ belongs to one set of weights. In this scene's run of SGD, $|G|^2$ became about 30 times smaller while $\operatorname{tr}\Sigma$ fell by a third, so the noise scale grew about twentyfold.
+$B_{\text{simple}}$ belongs to one set of weights. In this scene's run of SGD, averaged over steps 200 to 1000, $|G|^2$ was about a thirtieth of its start and $\operatorname{tr}\Sigma$ two thirds, so the noise scale grew twentyfold, though far from steady.
 
 # In the picture
 
 - The white arrow is $G$; the grey dots are the $g_n$; the red dots are forty mini-batch gradients $g_B$, and the red ring round the tip of $G$ is their covariance $\Sigma/B$ in the window, drawn two standard deviations out.
-- On the chart, logarithmic both ways, the white line is $|G|^2$ and the red line $\operatorname{tr}\Sigma/B$ (dashed: the other way of drawing); they cross at $B_{\text{simple}}$. The red dots are each batch's $|g_B - G|^2$, the rings their mean.
+- On the chart, logarithmic both ways, the white line is $|G|^2$ and the red line $\operatorname{tr}\Sigma/B$ (dashed: batches drawn the other way); they cross at $B_{\text{simple}}$. The red dots are each batch's $|g_B - G|^2$, the rings their mean.
 - Below, the noise scale along a run of SGD, and its two parts.
 
 > Try first "one example at a time", then drag the red dot on the chart to the right and watch the batches close in on the tip of $G$.
