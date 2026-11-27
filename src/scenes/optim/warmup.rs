@@ -26,7 +26,7 @@ pub const DEF: SceneDef = SceneDef {
     id: "warmup",
     title: "Warm-up and decay: the learning-rate schedule",
     group: GROUP,
-    blurb: "Why training starts with short steps and ends with short steps: curvature too high for a long step at the start, and noise that only a shorter step can quiet at the end.",
+    blurb: "One reason each for short steps at the start of training and at its end: curvature too high for a long step at the start, and noise that a shorter step, or a larger batch, quiets at the end.",
     make: |_| Box::new(Warmup::create()),
 };
 
@@ -430,7 +430,8 @@ impl Run {
                     self.phase = Phase::Done;
                     return;
                 }
-                if self.measure && !s.full_batch() && self.due(s.noise_every()) {
+                // (the noise ceiling is the one-step model's for an SGD step: it is not on the scale of Adam's η)
+                if self.measure && !s.full_batch() && s.method != Method::Adam && self.due(s.noise_every()) {
                     self.jobs.push(NoiseJob { t: self.t, model: self.model.clone(), noise: FullNoise::new(problem, &self.model) });
                 }
                 self.phase = if self.measure && self.due(s.sharp_every()) {
@@ -593,7 +594,7 @@ struct Trial {
 const TRIALS: [Trial; 6] = [
     Trial {
         button: "a long step from the start",
-        caption: r"Both start at once above the ceiling $2/S_0 = 0.0227$. The bright run, at 0.09 (4.0 times it): the loss jumps from 2.64 to 16.5 at the first step while the sharpness falls, to 16.8 by step 2, under the level $2/\eta = 22.2$; by step 3 the loss is 0.639, and the run trains on. The pale run, at 0.18 (7.9 times): its loss passes 100 000 at step 12. Tried here without a warm-up: at 0.03 the loss never rose; from 0.05 to 0.14 (6.2 times the ceiling) it jumped and recovered; from 0.15 (6.6 times) it ran away. Lewkowycz and co-authors (2020) called such a jump a catapult; in deep, wide ReLU networks trained by SGD on squared error, they found the largest step that trained near 6 times this ceiling ($12/\lambda_0$ against $2/\lambda_0$, $\lambda_0$ the starting curvature).",
+        caption: r"Both start at once above the ceiling $2/S_0 = 0.0227$. The bright run, at 0.09 (4.0 times it): the loss jumps from 2.64 to 16.5 at the first step while the sharpness falls, to 16.8 by step 2, under the level $2/\eta = 22.2$; by step 3 the loss is 0.639, and the run trains on. The pale run, at 0.18 (7.9 times): its loss passes 100 000 at step 12. Tried here without a warm-up: at 0.03 the loss never rose; from 0.05 to 0.14 (6.2 times the ceiling) it jumped and recovered; from 0.15 (6.6 times) it ran away. Lewkowycz and co-authors (2020) called such a jump a catapult; in deep, wide ReLU networks trained by SGD on squared error, they found $12/\lambda_0$, about 6 times this ceiling of $2/\lambda_0$, a good predictor of the largest step that trained ($\lambda_0$ the starting curvature).",
     },
     Trial {
         button: "the same peak, warmed up",
@@ -601,7 +602,7 @@ const TRIALS: [Trial; 6] = [
     },
     Trial {
         button: "a warm-up too short",
-        caption: r"A peak of 0.27 (12 times the starting ceiling), reached over 10 steps (bright) or 100 (pale). The bright run runs away at step 18; as the pale one's step climbs, its loss jumps over 1 four times, each within 10 steps of the step passing its ceiling (the highest, 7.90 at step 28), and it trains on, to 0.0754. Of the warm-ups tried here, the shortest that trained was 15 steps for a peak of 0.18, 50 for 0.27 and 150 for 0.36. But the larger peaks did not end lower: in 300 steps, 0.09 with no warm-up ended at 0.0602, under every run warmed up to 0.18, 0.27 or 0.36 (0.0671 to 0.101). Kalra and Barkeshli (2024) found the main gain from warm-up to be that a larger peak step could train, and the test performance then reached to depend mostly on that peak, little on the warm-up's length.",
+        caption: r"A peak of 0.27 (12 times the starting ceiling), reached over 10 steps (bright) or 100 (pale). The bright run runs away at step 18; as the pale one's step climbs, its loss jumps over 1 four times, each within 10 steps of the step passing its ceiling (the highest, 7.90 at step 28), and it trains on, to 0.0754. Of the warm-ups tried here, the shortest that trained was 15 steps for a peak of 0.18, 50 for 0.27 and 150 for 0.36. But the larger peaks did not end lower: in 300 steps, 0.09 with no warm-up ended at 0.0602, under every run warmed up to 0.18, 0.27 or 0.36 (0.0671 to 0.101). Kalra and Barkeshli (2024) found the main gain from warm-up to be that a larger peak step could train, and the test performance then reached to depend mostly on that peak, little on the warm-up's length, away from the steps at which training diverges.",
     },
     Trial {
         button: "a peak under the ceiling",
@@ -1224,7 +1225,7 @@ impl Warmup {
         if noisy {
             key.push((NOISE, "noise ceiling".to_string()));
         }
-        let title = if lay.narrow { r"the step $\eta$ and its ceilings" } else { r"the step size $\eta$, and the longest steps the curvature and the noise allow" };
+        let title = if lay.narrow { r"the step $\eta$ and its ceilings" } else { r"the step size $\eta$, and its ceilings from the curvature and from the noise" };
         Self::heading(f, lay, &p, title, &key);
         for (k, r) in self.runs.iter().enumerate().rev() {
             // the ceiling the curvature sets
@@ -1379,10 +1380,10 @@ impl Scene for Warmup {
     fn ui(&mut self, ui: &mut egui::Ui, _: &Gfx) {
         ui::note(
             ui,
-            r"Nearly every training run starts with steps that grow from almost nothing (a warm-up) and ends with steps that shrink to almost nothing (a decay). The two ends have different reasons. Here one small network (three tanh layers of 16, 609 weights, fitted to 128 noisy points by squared error) is trained twice from the same starting weights, a bright run and a pale one with settings of their own, and measured as it goes. On a quadratic, gradient descent with step $\eta$ is stable only while every curvature is under $2/\eta$ (scene stepsize), so the sharpness $S$, the largest eigenvalue of the loss's Hessian, sets a ceiling on the step:",
+            r"Many training runs start with steps that grow from almost nothing (a warm-up) and end with steps that shrink to almost nothing (a decay). This scene follows one reason for each end. Here one small network (three tanh layers of 16, 609 weights, fitted to 128 noisy points by squared error) is trained twice from the same starting weights, a bright run and a pale one with settings of their own, and measured as it goes. On a quadratic, gradient descent with step $\eta$ is stable only while every curvature is under $2/\eta$ (scene stepsize), so the sharpness $S$, the largest eigenvalue of the loss's Hessian, sets a ceiling on the step:",
         );
         ui::equation(ui, r"\eta < \frac{2}{S}");
-        ui::note(ui, r"At the starting weights $S_0 = 88.3$: a ceiling of 0.0227. A network is not a quadratic, and the sharpness moves as it trains; the charts follow both. With mini-batches the gradient's noise sets a second ceiling, which matters late in training (scene noisefloor).");
+        ui::note(ui, r"At the starting weights $S_0 = 88.3$: a ceiling of 0.0227. A network is not a quadratic, and the sharpness moves as it trains; the charts follow both. With mini-batches, McCandlish and co-authors' model of one SGD step gives a second ceiling, set mostly by the noise; here it matters late in training (scene noisefloor).");
 
         ui::section(ui, "Things to try");
         for (k, t) in TRIALS.iter().enumerate() {
@@ -1448,7 +1449,7 @@ impl Scene for Warmup {
                 (shade(SGD, 1), "bright and pale: the two runs, each with settings of its own"),
                 (CURVATURE, r"green: the sharpness $S$ (for Adam the preconditioned $\tilde S$)"),
                 (LIMIT, r"yellow: a limit that the step and the sharpness set each other: the ceiling $2/S$ over the step, the level $2/\eta$ over the sharpness"),
-                (NOISE, "red dots: the noise ceiling, with mini-batches"),
+                (NOISE, "red dots: the noise ceiling, with SGD's mini-batches"),
             ],
         );
         ui::section(ui, "Words");
@@ -1458,7 +1459,7 @@ impl Scene for Warmup {
             r"Sharpness $S$:",
             "the largest eigenvalue of the Hessian of the loss on the whole data: the curvature along the most curved direction. Estimated here by Lanczos's method from Hessian-vector products, each estimate starting from the last, until its residual is a thousandth of it.",
         );
-        ui::term(ui, r"Ceiling $2/S$, level $2/\eta$:", r"one limit seen from each side: the longest step the sharpness allows, and the largest sharpness the step allows.");
+        ui::term(ui, r"Ceiling $2/S$, level $2/\eta$:", r"one limit seen from each side: on a quadratic, the longest step the sharpness allows, and the largest sharpness the step allows.");
         ui::term(ui, "Warm-up:", r"the step climbing in a straight line from 0 to its peak: $\eta_t = \eta_{\text{peak}}\, t/T_w$ over the first $T_w$ steps.");
         ui::term(
             ui,
@@ -1476,7 +1477,7 @@ impl Scene for Warmup {
         ui::term(
             ui,
             "Noise ceiling:",
-            r"in McCandlish and co-authors' model of one SGD step, a step $\varepsilon$ with batch $B$ changes the loss on average by $-\varepsilon|G|^2 + \tfrac12\varepsilon^2(G^\top HG + \operatorname{tr}(H\Sigma)/B)$, with $G$ and $H$ the gradient and Hessian on the whole data and $\Sigma$ the covariance of single examples' gradients. It lowers the loss only for $\varepsilon < 2|G|^2/(G^\top HG + \operatorname{tr}(H\Sigma)/B)$: that is the ceiling, measured exactly nine times a run.",
+            r"in McCandlish and co-authors' model of one SGD step, a step $\varepsilon$ with batch $B$ changes the loss on average by $-\varepsilon|G|^2 + \tfrac12\varepsilon^2(G^\top HG + \operatorname{tr}(H\Sigma)/B)$, with $G$ and $H$ the gradient and Hessian on the whole data and $\Sigma$ the covariance of single examples' gradients. If the bracket is positive, it lowers the loss on average only for $\varepsilon < 2|G|^2/(G^\top HG + \operatorname{tr}(H\Sigma)/B)$: that is the ceiling (with $B$ taken as the batch drawn with replacement that is as noisy as the run's), measured nine times a run.",
         );
         ui::term(ui, "Noise floor:", "the level about which a constant step's loss wanders once the noise ceiling has come down to the step.");
 

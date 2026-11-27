@@ -18,7 +18,7 @@ The sharpness is the largest eigenvalue of the Hessian $H$ of $L$. On a quadrati
 
 $$ \eta h < 2 + 2\beta $$
 
-A rule that divides each weight's step by a number $P$ meets the curvature of $P^{-1}H$, the preconditioned sharpness. With $P$ held fixed, Adam is heavy ball written as an average, $m \leftarrow \beta_1 m + (1 - \beta_1) g$, whose level on $P^{-1}H$ is $(2 + 2\beta_1)/((1 - \beta_1)\eta)$. A rule that takes signs or orthogonalises is not a fixed multiple of the gradient and has no such level.
+A rule that divides each weight's step by a number $P$ meets the curvature of $P^{-1}H$, the preconditioned sharpness. With $P$ held fixed, Adam is heavy ball written as an average, $m \leftarrow \beta_1 m + (1 - \beta_1) g$, whose level on $P^{-1}H$ is $(2 + 2\beta_1)/((1 - \beta_1)\eta)$. A rule that takes signs or orthogonalises is not a fixed multiple of the gradient, so no single level $c/\eta$ applies to it.
 
 Example: at $\eta = 0.1$ and $\beta = 0.9$ momentum's level is $3.8/0.1 = 38$, plain descent's $2/0.1 = 20$.
 
@@ -28,7 +28,7 @@ A batch's gradient has mean $G$, the gradient of $L$. If its examples are drawn 
 
 $$ \mathbb{E}\,|g|^2 = |G|^2 + \frac{\operatorname{tr}\Sigma}{B} $$
 
-The simple noise scale $B_\text{simple} = \operatorname{tr}\Sigma/|G|^2$ is the batch at which the two parts are equal. Example: at $B_\text{simple} = 167$ a batch of 8 has $\mathbb{E}\,|g|^2 = |G|^2 (1 + 167/8) \approx 21.9\,|G|^2$, 95 % of it noise. Here examples are drawn without putting them back, which makes the noise smaller by $(N - B)/(N - 1)$.
+The simple noise scale $B_\text{simple} = \operatorname{tr}\Sigma/|G|^2$ is the batch at which the two parts are equal. Example: at $B_\text{simple} = 167$ a batch of 8 has $\mathbb{E}\,|g|^2 = |G|^2 (1 + 167/8) \approx 21.9\,|G|^2$, 95 % of it noise. Here examples are drawn without putting them back, which multiplies the noise term by $(N - B)/(N - 1)$.
 
 ## Updates and weights
 
@@ -36,7 +36,7 @@ A matrix's change has singular values $\sigma_1 \ge \sigma_2 \ge \dots$, its str
 
 $$ \frac{\sigma_1^2 + \sigma_2^2 + \cdots}{\sigma_1^2} $$
 
-about how many directions it stretches nearly as much as the most. Muon steps along nearly $U V^\top$ for its momentum $U S V^\top$, whose singular values are all near 1 where the momentum's are not 0: no direction dominates. For an MLP's matrix, plain descent's change without weight decay is a sum of $B$ outer products, one per example, so its rank is at most $B$.
+about how many directions it stretches nearly as much as the most. Muon steps along nearly $U V^\top$ for its momentum $U S V^\top$: where the momentum's singular values are not tiny, its reference polynomial turns them into numbers between about 0.68 and 1.2, so no direction dominates. For an MLP's matrix, plain descent's change without weight decay is a sum of $B$ outer products, one per example, so its rank is at most $B$.
 
 A matrix's size is its Frobenius norm $\|W\|_F$, the root of the sum of its squared entries (and of its squared singular values). Weight decay taken off the weights moves them by $-\eta\lambda\theta$; added to the gradient, it gives the rule $g + \lambda\theta$. For plain descent the two are the same steps; Adam divides the added part by its running size too.
 

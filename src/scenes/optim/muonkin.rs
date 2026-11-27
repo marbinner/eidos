@@ -913,7 +913,7 @@ const TRIALS: [Trial; 6] = [
     },
     Trial {
         button: "the sign of each entry",
-        caption: r"The same gradient, sign descent lit. Its step is not orthogonal: its singular values still fall, to 0.078 of the largest, and 3 of the 16 are below a millionth of it. Its stable rank is 2.28, against the gradient's 1.86 and $U V^\top$'s 16: the sign spreads the step a little, nowhere near evenly. It is 50° from the gradient's step and 72° from Muon's. Each is a steepest step for its own ruler: the sign when a step's size is its largest entry, $U V^\top$ when it is the most it stretches a vector (Bernstein and Newhouse, 2024).",
+        caption: r"The same gradient, sign descent lit. Its step is not orthogonal: 13 of its 16 singular values fall to 0.078 of the largest, and the other 3 are below a millionth of it. Its stable rank is 2.28, against the gradient's 1.86 and $U V^\top$'s 16: the sign spreads the step a little, nowhere near evenly. It is 50° from the gradient's step and 72° from Muon's. Each is a steepest step for its own ruler: the sign when a step's size is its largest entry, $U V^\top$ when it is the most it stretches a vector (Bernstein and Newhouse, 2024).",
     },
     Trial {
         button: "Shampoo without memory",
@@ -2061,14 +2061,14 @@ impl Member {
 /// The variants of Muon published since, a sentence each: who, what was changed, what
 /// they report and on what.
 const VARIANT_NOTES: [(&str, &str); 8] = [
-    ("Weight decay and the update's scale:", "Liu and co-authors (Moonshot AI, 2025) added decoupled weight decay and multiplied the step by $0.2\\sqrt{\\max(A, B)}$ for an $A$ by $B$ matrix, so that its root mean square is $0.2\\eta$, about what AdamW's usually is. Reusing AdamW's tuned settings, in compute-optimal runs of dense models of 0.4 to 1.5 billion parameters, they report AdamW's loss with about 52 % of its training FLOPs."),
+    ("Weight decay and the update's scale:", "Liu and co-authors (Moonshot AI, 2025) added decoupled weight decay and multiplied the step by $0.2\\sqrt{\\max(A, B)}$ for an $A$ by $B$ matrix, so that, with exact orthogonalisation of a matrix of full rank, its root mean square is $0.2\\eta$, about what AdamW's usually is. Reusing AdamW's tuned settings, in compute-optimal runs of dense models of 0.4 to 1.5 billion parameters, they report AdamW's loss with about 52 % of its training FLOPs."),
     ("A better polynomial:", "Amsel and co-authors (2025, Polar Express) chose each round's polynomial to be the best possible over a range of singular values, so that the iteration converges; training GPT-2 Small and Large on a billion tokens, it gave lower losses than the reference's polynomial at every learning rate they tried."),
     ("Fewer directions:", "Ahn and co-authors (2025, Dion) make an orthonormal step of a chosen lower rank, by one step of power iteration with error feedback, to save communication when a matrix is spread over many machines; at 3 billion parameters they report half or a quarter of the directions on par with full Muon. (Not run here.)"),
     ("Constraints on the weights:", "Pethick and co-authors (2025, Scion) give every layer a norm and take each step as the best point of a ball in it; with weight decay the weights stay inside a ball."),
     ("An adaptive scale per neuron:", "Li and co-authors (2025, NorMuon) divide each row of Muon's step by a running average of its size."),
     ("An adaptive scale per entry:", "Si, Zhang and Shen (2025, AdaMuon) take the sign first and divide each entry by a running average of its size."),
     ("A step that shrinks with the gradient:", "Lau, Long and Su (2025, PolarGrad) scale $UV^\\top$ by the nuclear norm."),
-    ("Clipping attention:", "The Kimi K2 team (2025, MuonClip) found attention logits growing large with Muon at scale and added a clip of a head's query and key weights after each step; with it they pre-trained on 15.5 trillion tokens without a loss spike."),
+    ("Clipping attention:", "The Kimi K2 team (2025, MuonClip) found attention logits growing large with Muon at scale and added a clip: after a step, a head whose largest logit has passed a threshold has its query and key weights scaled down. It acted mainly early in training, and with it they pre-trained on 15.5 trillion tokens without a loss spike."),
 ];
 
 impl Scene for MuonKin {
@@ -2366,7 +2366,7 @@ mod tests {
         assert_eq!(s.chosen, Member::Sign);
         let st = step(&s, Member::Sign);
         let nonzero: Vec<f64> = st.sv.iter().cloned().filter(|&v| v > 0.0).collect();
-        says(1, &format!("to {} of the largest, and {} of the 16 are below a millionth of it", num(*nonzero.last().unwrap(), 3), WIDTH - nonzero.len()));
+        says(1, &format!("{} of its 16 singular values fall to {} of the largest, and the other {} are below a millionth of it", nonzero.len(), num(*nonzero.last().unwrap(), 3), WIDTH - nonzero.len()));
         says(1, &format!("Its stable rank is {}, against the gradient's {}", num(st.stable, 2), num(g.stable, 2)));
         says(1, &format!("It is {} from the gradient's step and {} from Muon's", angle(st.cos_grad), angle(st.cos_muon)));
 

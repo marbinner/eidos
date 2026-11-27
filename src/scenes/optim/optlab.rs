@@ -275,8 +275,9 @@ impl Design {
     /// The number c such that, on a quadratic, the rule's step at rate η is stable
     /// while the curvature (for the rules that divide by running sizes, the
     /// curvature after that division, the preconditioner held fixed) is below c / η,
-    /// and grows without end above it; `None` for a rule that is not linear in the
-    /// gradient (a sign, an orthogonalisation, Shampoo's and SOAP's matrices). (Goh
+    /// and grows without end above it; `None` for a rule whose step is not a fixed
+    /// multiple of the gradient (a sign, an orthogonalisation), and for Shampoo and SOAP,
+    /// which have such a level on a sharpness after their matrices, not measured here. (Goh
     /// 2017; Cohen and co-authors 2021, App. B, and 2022, §2 and Table 1; the course
     /// notes, curvature.md A1 to A4. Tested below against the library's own steps.)
     /// Weight decay, which adds about λ to every curvature, is left out.
@@ -1601,7 +1602,11 @@ impl Lab {
             let mut text = match r.sharp.last() {
                 Some(m) => {
                     let ago = r.steps.saturating_sub(m.step);
-                    let age = if ago > 0 { format!(", {ago} steps ago") } else { String::new() };
+                    let age = match ago {
+                        0 => String::new(),
+                        1 => ", 1 step ago".to_string(),
+                        _ => format!(", {ago} steps ago"),
+                    };
                     format!("{}{what}: {} at step {}{age}", letter(k), sci(m.value), m.step)
                 }
                 None => format!("{}: measuring…", letter(k)),
@@ -1613,7 +1618,10 @@ impl Lab {
                         text.push_str(&format!(" · level {}", sci(c / lr)));
                     }
                 }
-                None => text.push_str(&format!(" · no level: {} is not linear in the gradient", r.design.name())),
+                None if matches!(r.design.rule, Rule::Shampoo | Rule::Soap) => {
+                    text.push_str(&format!(" · no level drawn: {} divides by matrices, and the sharpness it meets is not measured here", r.design.name()));
+                }
+                None => text.push_str(&format!(" · no level drawn: the step of {} is not a fixed multiple of the gradient", r.design.name())),
             }
             Lab::below(f, lay, plot, k, &text, color_of(k));
         }
@@ -1806,7 +1814,7 @@ fn rule_note(rule: Rule) -> &'static str {
         Rule::Sgd => r"$\theta \leftarrow \theta - \eta g$: every weight moves by the step size times its gradient.",
         Rule::Momentum => r"Heavy ball: $v \leftarrow \beta v + g$, then $\theta \leftarrow \theta - \eta v$. Written as an average, $v \leftarrow \beta v + (1 - \beta) g$, it takes the same steps at a step size $1/(1 - \beta)$ times larger.",
         Rule::Nesterov => r"$v \leftarrow \beta v + g$, then $\theta \leftarrow \theta - \eta\,(g + \beta v)$.",
-        Rule::AdaGrad => r"Each weight's step is divided by the root of the sum of all its squared gradients so far, so that its steps only shrink.",
+        Rule::AdaGrad => r"Each weight's step is divided by the root of the sum of all its squared gradients so far, so that each weight's step size only shrinks.",
         Rule::RmsProp => r"Each weight's step is divided by the root of a running average (coefficient $\alpha$) of its squared gradient.",
         Rule::Adam => r"A running average of the gradient ($\beta_1$) divided, weight by weight, by the root of a running average of its square ($\beta_2$), both corrected for starting at 0, with $\varepsilon$ added to the root.",
         Rule::SignSgd => r"$\theta \leftarrow \theta - \eta \operatorname{sign}(g)$: every weight moves by exactly $\eta$.",
@@ -1974,13 +1982,13 @@ impl Lab {
         ui::term(ui, "Batch:", "the examples whose mean gradient a step uses; all of them, here 256 or 16, is full-batch training.");
         ui::term(ui, "Sharpness:", "the largest eigenvalue of the Hessian of the loss: how sharply it curves in its most curved direction.");
         ui::term(ui, "Preconditioned sharpness:", r"the same for $P^{-1}H$, the curvature a rule that divides each weight's step by $P$ meets.");
-        ui::term(ui, "Level:", r"$2/\eta$ for plain descent, $(2 + 2\beta)/\eta$ for heavy ball with $v \leftarrow \beta v + g$, $(2 + 2\beta_1)/((1 - \beta_1)\eta)$ for Adam: on a quadratic, the curvature beyond which the rule's step grows without end. Weight decay, which adds about $\lambda$ to every curvature, is left out.");
+        ui::term(ui, "Level:", r"$2/\eta$ for plain descent, $(2 + 2\beta)/\eta$ for heavy ball with $v \leftarrow \beta v + g$, $(2 + 2\beta_1)/((1 - \beta_1)\eta)$ for Adam with its divisors $P$ held fixed, on $P^{-1}H$ (AdaGrad and RMSProp likewise, at $2/\eta$ and $(2 + 2\beta)/\eta$; Nesterov's is $(2 + 2\beta)/((1 + 2\beta)\eta)$, and a momentum written as an average has $1/(1 - \beta)$ times its level): on a quadratic, the curvature beyond which the rule's step grows without end. Weight decay, which adds about $\lambda$ to every curvature, is left out.");
         ui::term(ui, "Simple noise scale:", r"the total variance of the examples' gradients over the squared length of their mean, $\operatorname{tr}\Sigma/|G|^2$, a batch size. McCandlish and co-authors' (2018) noise scale weights the noise by the curvature; this simple one is what theirs becomes when the Hessian is a multiple of the identity.");
         ui::term(ui, "Singular values:", "how much a matrix stretches each of its own directions, largest first.");
         ui::term(ui, "Stable rank:", "the sum of the squared singular values over the largest one's square: about how many directions a matrix stretches nearly as much as its most stretched one.");
         ui::term(ui, "Frobenius norm:", "the root of the sum of the squares of a matrix's entries, which is also that of its squared singular values.");
         ui::term(ui, "Weight decay:", r"taken off the weights, $\theta \leftarrow \theta - \eta\lambda\theta$ each step (AdamW's); or added to the gradient, $g + \lambda\theta$, before the rule sees it.");
-        ui::term(ui, "Orthogonalised:", "a matrix with its singular vectors kept and every singular value set to 1, or, by Muon's polynomial, pushed towards 1.");
+        ui::term(ui, "Orthogonalised:", "a matrix with its singular vectors kept and every nonzero singular value set to 1, or, by Muon's polynomial, pushed towards 1.");
         ui::term(ui, "Diverged:", "a run whose loss or weights stopped being finite numbers, or whose weights grew past a length of $10^8$: it stops.");
 
         ui::section(ui, "Numbers");
@@ -2169,9 +2177,9 @@ fn design_knobs(ui: &mut egui::Ui, d: &mut Design, examples: usize, total: u64) 
 /// end of the file hold every number).
 const CAPTIONS: [&str; TRIALS] = [
     r"Plain descent ($B$) and heavy-ball momentum $\beta = 0.9$ ($A$), both at step 0.1 on the regression, with all the data each step. On a steady slope momentum's steps add up to $1/(1 - \beta) = 10$ plain ones: $A$'s loss is under 0.01 from step 108 on, $B$'s from step 428. Yet a plain step ten times as long, 1, blows up at step 10: the sharpness at the start is 7.96, over that step's level $2/\eta = 2$. At 0.1 momentum's level is $3.8/\eta = 38$ and plain descent's 20, and both runs stay under theirs (14.1 and 10.4 at most). Momentum's loss also rises on the way, from 0.075 at step 2 to 0.27 at step 3 (“Momentum: a ball with weight”).",
-    r"Plain descent on the spirals: $A$ with batches of 8 at step 0.02, $B$ with batches of 128 at a step 16 times as long, 0.32. The simple noise scale starts at 167, above both batches. Count examples, not steps: $A$ after 1000 steps (8000 examples) is at 1.0247, $B$ after 63 steps (8064 examples) at 1.0246, so here $B$'s 63 steps did the work of $A$'s 1000. Per step $B$ is far ahead (0.18 at step 1000). As $B$ learns its noise scale falls, below its batch at 24 of its 50 measurements after step 500; in McCandlish and co-authors' model (2018), far above the noise scale doubling the batch barely helps (“The noise scale and the critical batch size”).",
+    r"Plain descent on the spirals: $A$ with batches of 8 at step 0.02, $B$ with batches of 128 at a step 16 times as long, 0.32. The simple noise scale starts at 167, above both batches. Count examples, not steps: $A$ after 1000 steps (8000 examples) is at 1.0247, $B$ after 63 steps (8064 examples) at 1.0246, so here $B$'s 63 steps did the work of $A$'s 1000. Per step $B$ is far ahead (0.18 at step 1000). As $B$ learns its noise scale falls, below its batch at 24 of its 50 measurements after step 500; in McCandlish and co-authors' model (2018), far above the noise scale (their curvature-weighted one, for which the simple one stands in here) doubling the batch barely helps (“The noise scale and the critical batch size”).",
     r"Muon at the reference's step 0.02 ($A$) and Adam at Kingma and Ba's 0.001 ($B$), batches of 8 sequences. The update of block 1's first MLP matrix (32 by 16) at step 500: fifteen of Muon's sixteen singular values lie between 0.020 and 0.032, its step times its shape factor $\sqrt{32/16}$ times 0.69 to 1.13, inside the band (about 0.68 to 1.2) where five rounds of its polynomial leave them (“Muon: an orthogonal step”); Adam's fall from $1.2 \times 10^{-3}$ to $3.7 \times 10^{-5}$ (stable ranks 9.3 and 2.1). Muon takes the hidden matrices only; the rest goes to Adam at 0.0003, as in the reference code. Here Muon's loss falls faster at first (0.42 against 1.51 at step 50) and Adam's is lower at step 500 (0.135 against 0.154): one seed, each rule at its source's step.",
-    r"Full-batch descent on the regression, peak step 0.4. The sharpness at the start is 7.96, so plain descent there bears steps under $2/7.96 = 0.25$. $B$ starts at 0.4: its loss falls, then jumps (0.33 at step 1, 0.62 at step 2), and by step 10 its sharpness is 4.0, under its level $2/\eta = 5$; from step 100 on it stays about the level (4.4 to 6.1). $A$ warms up over 50 steps: its loss falls at every step meanwhile, but its sharpness does not follow the falling level down: it is 8.5 at step 70, against 5, and 4.6 at step 80. At a peak of 0.8 $B$ blows up at step 12, $A$ at step 53, and with 200 steps of warm-up at step 138. Gilmer and co-authors (2021) saw warm-up lower the sharpness as the step grew, in image classifiers and transformers far larger than this network (“The edge of stability”).",
+    r"Full-batch descent on the regression, peak step 0.4. The sharpness at the start is 7.96, so on a quadratic with that curvature plain descent would bear only steps under $2/7.96 = 0.25$. $B$ starts at 0.4: its loss falls, then jumps (0.33 at step 1, 0.62 at step 2), and by step 10 its sharpness is 4.0, under its level $2/\eta = 5$; from step 100 on it stays about the level (4.4 to 6.1). $A$ warms up over 50 steps: its loss falls at every step meanwhile, but its sharpness does not follow the falling level down: it is 8.5 at step 70, against 5, and 4.6 at step 80. At a peak of 0.8 $B$ blows up at step 12, $A$ at step 53, and with 200 steps of warm-up at step 138. Gilmer and co-authors (2021) saw warm-up lower the sharpness as the step grew, in image classifiers and transformers far larger than this network (“The edge of stability”).",
     r"Adam at step 0.01 with decay $\lambda = 0.01$ (PyTorch's default for AdamW) on the spirals, with layer normalisation after each hidden layer and batches of 32. $A$ takes the decay off the weights, $\theta \leftarrow \theta - \eta\lambda\theta$ (AdamW); $B$ adds $\lambda\theta$ to the gradient, where Adam divides it, weight by weight, by the root of its running average of squared gradients. For plain descent the two are the same steps; for Adam they are not. After 1000 steps $A$'s hidden matrices are 2.5 to 4.8 in size, $B$'s 1.9 to 2.4, and $B$'s loss is 0.075 against $A$'s 0.0017. Here, scaling a hidden layer's weights and bias together leaves the output as it was, the normalisation's small guard $\varepsilon$ aside: their size only sets how far a step turns them (“Weight decay and the effective learning rate”).",
 ];
 

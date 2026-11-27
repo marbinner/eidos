@@ -1,6 +1,6 @@
 # The idea
 
-A layer multiplies its input by a weight matrix $W$, and training moves $W$ along the gradient of the loss, a matrix too. Often a few of its directions are far stronger than the rest, so a gradient step changes the layer mostly along those. Muon takes the momentum of the gradient, keeps its directions, pushes their strengths towards 1, and steps along that. This scene takes one step apart on a real layer. You need the singular value decomposition (scene svd), the polar factor (scene polar) and momentum.
+A layer multiplies its input by a weight matrix $W$, and training moves $W$ along the gradient of the loss, a matrix too. In the layer shown here, a few of the gradient's directions are far stronger than the rest, so a gradient step changes the layer mostly along those. Muon takes the momentum of the gradient, keeps its directions, pushes their strengths towards 1, and steps along that. This scene takes one step apart. You need the singular value decomposition (scene svd), the polar factor (scene polar) and momentum.
 
 # The mathematics
 

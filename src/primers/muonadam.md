@@ -9,7 +9,7 @@ Here SGD with momentum, AdamW and Muon train one small network, from the same st
 Take one layer's weight matrix $W$ (32 by 32 for the two middle layers) and the gradient $G$ of a mini-batch's loss with respect to it. Each rule turns the gradients into a step $\Delta W$, scaled by its step size $\eta$:
 
 - SGD with momentum keeps a running sum $B \leftarrow 0.9\,B + G$ and steps $\Delta W = -\eta B$.
-- AdamW keeps running averages of each entry's gradient and of its square, and divides the first by the root of the second, entry by entry: each entry moves by about $\eta$, rarely more.
+- AdamW keeps running averages of each entry's gradient and of its square, and divides the first by the root of the second, entry by entry: an entry moves by about $\eta$ while its gradients stay alike, and by less when they change sign or shrink.
 - Muon keeps a running average $M \leftarrow 0.95\,M + 0.05\,G$, blends it with the newest gradient, writes the blend as $U \Sigma V^\top$ and steps along a matrix with the same $U$ and $V$:
 
 $$ \Delta W = -\eta\, U f(\Sigma) V^\top $$
@@ -24,7 +24,7 @@ $$ \frac{\sigma_1^2 + \sigma_2^2 + \dots}{\sigma_1^2} $$
 
 says roughly how many directions the step moves: 1 for a matrix of rank one, $n$ for an orthogonal $n \times n$ one. Singular values 1, 0.5 and 0.1 give $1 + 0.25 + 0.01 = 1.26$.
 
-A layer's gradient for one point is a rank-one matrix: the gradient at the layer's output times its input, $\delta\,x^\top$. A batch's gradient is the mean of such matrices, so its rank is at most the batch size. Here a few directions dominate: on layer 2 the steps of SGD with momentum, running sums of gradients, have stable ranks below 3. Dividing entry by entry need not flatten that either. In the extreme where each entry's step is only its sign, the signs of a rank-one $u v^\top$ are $\operatorname{sign}(u)\operatorname{sign}(v)^\top$, again of rank one: $u = (1, -2)$ and $v = (3, 1)$ give
+A layer's gradient for one point is a rank-one matrix: the gradient at the layer's output times its input, $\delta\,x^\top$. A batch's gradient is the mean of such matrices, so its rank is at most the batch size. Here a few directions dominate: on layer 2 the steps of SGD with momentum have stable ranks below 3. Dividing entry by entry need not flatten that either. In the extreme where each entry's step is only its sign, the signs of a rank-one $u v^\top$ are $\operatorname{sign}(u)\operatorname{sign}(v)^\top$, again of rank one: $u = (1, -2)$ and $v = (3, 1)$ give
 
 $$ \begin{bmatrix} 3 & 1 \\ -6 & -2 \end{bmatrix} \mapsto \begin{bmatrix} 1 & 1 \\ -1 & -1 \end{bmatrix} $$
 
@@ -32,7 +32,7 @@ Muon's $f$ flattens, but only within reach: it brings a singular value to betwee
 
 ## Sizes
 
-The three step sizes are not one scale. Muon's step has its largest singular values near $\eta$, so it changes the layer's output by at most about $1.2\,\eta$ times the input's length. An AdamW step of $\eta$ moves each of the 1024 entries by about $\eta$; if their signs form a rank-one pattern, the step stretches some input by $32\,\eta$ times its length. So the scene compares how wide a range of step sizes each rule bears, not the values. How large a step is beside the weights is measured by
+The three step sizes are not one scale. Muon's step has its largest singular values near $\eta$, so it changes the layer's output by at most about $1.2\,\eta$ times the input's length. If an AdamW step moves all 1024 entries by $\eta$, with signs in a rank-one pattern, it stretches some input by $32\,\eta$ times its length. So the scene compares the range of step sizes each rule bears, not the values. How large a step is beside the weights is measured by
 
 $$ \frac{\|\Delta W\|_F}{\|W\|_F}, \qquad \|A\|_F^2 = \sum_{i,j} a_{ij}^2 = \sum_i \sigma_i^2 $$
 

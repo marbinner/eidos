@@ -1009,7 +1009,7 @@ const TRIALS: [Trial; 6] = [
     },
     Trial {
         button: "the classical cubic instead",
-        caption: r"The same momentum, five rounds of the classical cubic $1.5s - 0.5s^3$, which converges to 1 from any start between 0 and $\sqrt 3$, but slowly from small ones: its slope at 0 is 1.5, so a small value grows 1.5 times a round, 7.6 times in five. Here the three largest reach 1.000, the fourth 0.67, and the rest stay below 0.36; the value followed goes from 0.0027 only to 0.021. To reach 0.68 in five rounds the cubic needs a start of at least 0.10, the reference's quintic 0.0015. That is the trade the quintic's authors made: they chose its coefficients to make the slope at 0 'as large as possible', accepting values that end anywhere in about $[0.7, 1.3]$ (Jordan and co-authors, 2024). Later versions of the NanoGPT speed-run code use other polynomials, a different one each round.",
+        caption: r"The same momentum, five rounds of the classical cubic $1.5s - 0.5s^3$, which converges to 1 from any start between 0 and $\sqrt 3$, but slowly from small ones: its slope at 0 is 1.5, so a small value grows 1.5 times a round, 7.6 times in five. Here the three largest reach 1.000, the fourth 0.67, and the rest stay below 0.36; the value followed goes from 0.0027 only to 0.021. To reach 0.68 in five rounds the cubic needs a start of at least 0.105, the reference's quintic 0.0015. That is the trade the quintic's authors made: they chose its coefficients to make the slope at 0 'as large as possible', accepting values that end anywhere in about $[0.7, 1.3]$ (Jordan and co-authors, 2024). Later versions of the NanoGPT speed-run code use other polynomials, a different one each round.",
     },
     Trial {
         button: "the exact polar factor, in training",
@@ -1021,7 +1021,7 @@ const TRIALS: [Trial; 6] = [
     },
     Trial {
         button: "the shape factor on a tall layer",
-        caption: r"Layer 1 reads the 2 numbers of a point into 16 units: a tall matrix, 16 by 2 (the reference gives it to Adam; it is shown here as Muon would treat it). Five rounds take its 2 singular values to 0.91 and 0.75; the reference then multiplies by $\sqrt{\max(1, 16/2)} = 2.83$, and the step's singular values are $2.57\eta$ and $2.12\eta$. So its spectral norm is not $\eta$: the reference's 'learning rate, in units of spectral norm per update' holds only when fan-out $\le$ fan-in. What the factor keeps is the size of each entry's change: with the exact factor, the root mean square of the step's entries is $\eta/\sqrt{\text{fan-in}}$ for every shape, here $0.71\eta$ (with the five rounds, $0.59\eta$). Bernstein (2025) derives $\sqrt{\text{fan-out}/\text{fan-in}}$, without the max; Liu and co-authors at Moonshot AI (2025) use $0.2\sqrt{\max(\text{fan-out}, \text{fan-in})}$.",
+        caption: r"Layer 1 reads the 2 numbers of a point into 16 units: a tall matrix, 16 by 2 (the reference gives it to Adam; it is shown here as Muon would treat it). Five rounds take its 2 singular values to 0.91 and 0.75; the reference then multiplies by $\sqrt{\max(1, 16/2)} = 2.83$, and the step's singular values are $2.57\eta$ and $2.12\eta$. So its spectral norm is not $\eta$: the reference's 'learning rate, in units of spectral norm per update' holds only when fan-out $\le$ fan-in. What the factor keeps is the size of each entry's change: with the exact polar factor and a matrix of full rank, the root mean square of the step's entries is $\eta/\sqrt{\text{fan-in}}$ for every shape, here $0.71\eta$ (with the five rounds, $0.59\eta$). Bernstein (2025) derives $\sqrt{\text{fan-out}/\text{fan-in}}$, without the max; Liu and co-authors at Moonshot AI (2025) use $0.2\sqrt{\max(\text{fan-out}, \text{fan-in})}$.",
     },
 ];
 
@@ -2241,7 +2241,7 @@ impl Scene for MuonScene {
         );
         ui::note(
             ui,
-            r"Its authors' second reason is a speculation from looking at updates: those of SGD with momentum and of Adam for a transformer's matrices 'typically have very high condition number. That is, they are almost low-rank matrices', and they 'speculate that orthogonalization effectively increases the scale of other “rare directions”' (Jordan and co-authors, 2024). Here layer 2's gradient has three large singular values and thirteen below 0.011 of its norm, and five rounds give 11 of the 16 a size between 0.68 and 1.12.",
+            r"Its authors' second reason is a speculation from looking at updates: those of SGD with momentum and of Adam for a transformer's matrices 'typically have very high condition number. That is, they are almost low-rank matrices', and they 'speculate that orthogonalization effectively increases the scale of other “rare directions”' (Jordan and co-authors, 2024). Here layer 2's gradient has three large singular values and thirteen below 0.011 of its norm; the momentum mix $\tilde M$ that the rounds are given is more even, and five rounds give 11 of its 16 a size between 0.68 and 1.12.",
         );
         ui::note(
             ui,
@@ -2545,14 +2545,14 @@ mod tests {
     }
 
     /// The least start that reaches 0.68 in five rounds: the course notes' 0.0015 for
-    /// the quintic; 0.10 for the cubic.
+    /// the quintic; 0.105 for the cubic.
     #[test]
     fn the_least_starts() {
         let q = least_start(Odd5::JORDAN, 5, 0.68).unwrap();
         assert!((q - 0.0015).abs() < 0.00005, "{q}");
         assert!(rounds_of(Odd5::JORDAN, q * 0.999, 5) < 0.68 && rounds_of(Odd5::JORDAN, q * 1.001, 5) >= 0.68);
         let c = least_start(Odd5::CUBIC, 5, 0.68).unwrap();
-        assert_eq!(sig2(c), "0.10");
+        assert!((c - 0.1045).abs() < 0.0005, "{c}");
         assert!(least_start(Odd5::JORDAN, 5, 1e-30).is_none());
     }
 
@@ -2631,7 +2631,9 @@ mod tests {
         assert!(after[4..].iter().all(|&v| v < 0.36));
         let x0 = s.snap.bars[1][PICKED];
         says(2, &format!("goes from {} only to {}", sig2(x0), sig2(rounds_of(Odd5::CUBIC, x0, 5))));
-        says(2, &format!("needs a start of at least {}, the reference's quintic {}", sig2(least_start(Odd5::CUBIC, 5, 0.68).unwrap()), sig2(least)));
+        // (a least start is rounded up, so that the number named does reach 0.68)
+        let cubic = (least_start(Odd5::CUBIC, 5, 0.68).unwrap() * 1000.0).ceil() / 1000.0;
+        says(2, &format!("needs a start of at least {cubic:.3}, the reference's quintic {}", sig2(least)));
         // the exact polar factor, in training
         let s = run(3);
         assert!(s.race.done());

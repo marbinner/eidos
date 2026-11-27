@@ -1,6 +1,6 @@
 # The idea
 
-The step size of a training run usually climbs from almost nothing over the first steps (a warm-up) and falls to almost nothing over the last (a decay). The two ends answer different limits: at the start a sharply curved loss makes a long step unstable; at the end the noise of a mini-batch holds a constant step's loss up. This scene measures both on one small network. You need gradient descent, the Hessian's eigenvalues and mini-batches.
+The step size of a training run often climbs from almost nothing over the first steps (a warm-up) and falls to almost nothing over the last (a decay). This scene follows one reason for each end, measured on one small network: at the start a sharply curved loss makes a long step unstable; at the end the noise of a mini-batch holds a constant step's loss up. You need gradient descent, the Hessian's eigenvalues and mini-batches.
 
 # The mathematics
 
@@ -18,7 +18,7 @@ Read one way it is a ceiling on the step, $2/S$; the other way, a level on the s
 
 Example: at the starting weights $S_0 = 88.3$, a ceiling of $2/88.3 = 0.0227$. With $\eta = 0.09$ the sharpest direction's factor is $1 - 0.09 \times 88.3 \approx -6.9$: on a quadratic its error would grow almost sevenfold per step.
 
-A network is not a quadratic: its sharpness moves with the weights. Here a step a few times over the ceiling made the loss jump while the sharpness fell under $2/\eta$, and training went on (a catapult); a longer step ran away. A warm-up starts under the ceiling and gives the sharpness time to come down.
+A network is not a quadratic: its sharpness moves with the weights. Here a step a few times over the ceiling made the loss jump while the sharpness fell under $2/\eta$, and training went on (a catapult); a longer step ran away. A warm-up, starting under the ceiling, gave the sharpness time to come down.
 
 ## Adam
 
@@ -30,15 +30,15 @@ At the first step $P_i \approx (1 - \beta_1)|g_i|$, a tenth of the gradient's si
 
 ## The ceiling the noise sets
 
-A mini-batch of $B$ independent examples gives the whole data's gradient $G$ plus noise; $\Sigma$ is the covariance of single examples' gradients. With the loss expanded to second order, a step $\varepsilon$ changes it on average by
+A mini-batch of $B$ independent examples gives the whole data's gradient $G$ plus noise; $\Sigma$ is the covariance of single examples' gradients. In a model of one step of SGD, with the loss expanded to second order, a step $\varepsilon$ changes it on average by
 
 $$ \Delta L = -\varepsilon\, |G|^2 + \tfrac12\, \varepsilon^2 \left( G^\top H G + \operatorname{tr}(H\Sigma)/B \right) $$
 
-The first term is the gain; the second, the cost of the curvature along the gradient and of the noise. So $\Delta L < 0$ only for
+The first term is the gain; the second, the cost of the curvature along the gradient and of the noise. So, if the bracket is positive, $\Delta L < 0$ only for
 
 $$ \varepsilon < \frac{2\,|G|^2}{G^\top H G + \operatorname{tr}(H\Sigma)/B} $$
 
-This is the noise ceiling. As training goes on $|G|^2$ shrinks faster than the noise term, which comes to set most of the denominator, and the ceiling falls with the loss. With a constant step the loss falls until the ceiling is down to the step; then a step no longer lowers the loss on average, and it wanders on a floor (scene noisefloor). Only a shorter step goes lower.
+This is the model's noise ceiling, a guide rather than a law. Here, late in training, the noise term sets most of the denominator, the ceiling wanders round a constant step, and the loss wanders on a floor (scene noisefloor). A shorter step goes lower; so does a larger batch.
 
 ## The schedules
 
