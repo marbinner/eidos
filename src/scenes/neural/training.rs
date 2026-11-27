@@ -459,7 +459,7 @@ impl Training {
             ui::slider(ui, "momentum", &mut self.momentum, 0.0..=0.99);
         }
         if Optim::ALL[self.optim] == Optim::Muon {
-            ui::note(ui, "Muon replaces each weight matrix's update by an orthogonal matrix: all its singular values are pushed to about one, so every direction of the layer moves at the same rate, however lopsided the gradient. Applied here to every weight matrix (its authors recommend hidden layers only); biases use Adam.");
+            ui::note(ui, "Muon replaces each weight matrix's update by a nearly orthogonal matrix with the same singular vectors: its singular values are all pushed to roughly one (between about 0.7 and 1.2 here), so every direction of the layer moves at about the same rate, however lopsided the gradient. Applied here to every weight matrix (its authors recommend hidden layers only); biases use Adam.");
         }
         ui::note(ui, "Switching optimiser keeps the weights and continues from where training is, so you can compare from the same point: press \"reset weights\" for a fresh race.");
         if self.diverged {

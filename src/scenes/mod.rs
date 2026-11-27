@@ -95,6 +95,7 @@ mod interp;
 mod lens;
 mod linalg;
 mod neural;
+mod optim;
 mod plots;
 mod stats;
 
@@ -108,6 +109,7 @@ const TOPICS: &[fn() -> Vec<SceneDef>] = &[
     hermite::scenes,
     neural::scenes,
     backprop::scenes,
+    optim::scenes,
     neural::opening_interpretability,
     interp::scenes,
     lens::scenes,
@@ -193,7 +195,7 @@ mod tests {
     /// runs is checked in `tests/scenes.rs`.)
     /// The headings of the catalogue's sections, in order: what a scene's `group` may be.
     /// (A heading mistyped in one scene would otherwise pass for a section of its own.)
-    const HEADINGS: [&str; 22] = [
+    const HEADINGS: [&str; 23] = [
         "Linear algebra: vectors and maps",
         "Linear algebra: equations",
         "Linear algebra: eigenvalues",
@@ -211,6 +213,7 @@ mod tests {
         "Hermite polynomials",
         "Neural networks",
         backprop::GROUP,
+        optim::GROUP,
         interp::GROUP,
         lens::GROUP,
         "Plotting",
@@ -236,10 +239,14 @@ mod tests {
             let earlier = all[..i].iter().rposition(|other| other.group == d.group);
             assert!(earlier.is_none_or(|e| e + 1 == i), "{}: its group, {:?}, is split in two in the list", d.id, d.group);
         }
-        // the sections are the known ones, in their order
+        // the sections are known ones, in their order (a section whose scenes are all
+        // still being written is not in the catalogue yet)
         let mut seen: Vec<&str> = all.iter().map(|d| d.group).collect();
         seen.dedup();
-        assert_eq!(seen, HEADINGS, "the sections of the catalogue");
+        let mut known = HEADINGS.iter();
+        for group in &seen {
+            assert!(known.any(|h| h == group), "the section {group:?} is unknown or out of its place");
+        }
         // every planned scene has a name of its own too, and a written one links nowhere else
         let every = everything();
         for (i, d) in every.iter().enumerate() {
